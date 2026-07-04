@@ -1,0 +1,41 @@
+/**
+ * Presentation helpers shared across dashboard views. Pure, display-only —
+ * never mutate or reinterpret the underlying decimal-string amounts.
+ */
+import { Asset, PaymentMode } from '@app/shared';
+
+/** Human label for a payment mode. */
+export function paymentModeLabel(mode: PaymentMode): string {
+  return mode === PaymentMode.PREPAID_CREDITS ? 'Credits' : 'Pay-per-call';
+}
+
+/** Trim a decimal string of trailing zeros while keeping at least one digit. */
+export function trimDecimal(value: string): string {
+  if (!value.includes('.')) return value;
+  const trimmed = value.replace(/0+$/, '').replace(/\.$/, '');
+  return trimmed === '' ? '0' : trimmed;
+}
+
+/** Format an amount with its asset suffix, e.g. `1.25 RLUSD`. */
+export function formatAmount(amount: string, asset: Asset): string {
+  return `${trimDecimal(amount)} ${asset}`;
+}
+
+/** Shorten an XRPL classic address to `rXXXX…YYYY` for compact tables. */
+export function shortenAddress(address: string): string {
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+/** Shorten a transaction hash to `ABCD…WXYZ`. */
+export function shortenHash(hash: string): string {
+  if (hash.length <= 12) return hash;
+  return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+}
+
+/** Format an ISO timestamp as a local wall-clock time. */
+export function formatTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
