@@ -264,6 +264,99 @@ export async function createEscrowCredit(
   return rows[0]!;
 }
 
+/** Revenue and call count for one asset, within a seller's usage. */
+export interface AssetRevenue {
+  asset: Asset;
+  /** Summed amount in the asset's human unit. */
+  amount: string;
+  calls: number;
+}
+
+export interface UsageSummary {
+  totalCalls: number;
+  activeWallets: number;
+  revenueByAsset: AssetRevenue[];
+}
+
+/**
+ * Headline metrics for a seller: total metered calls, distinct paying wallets,
+ * and revenue broken down per settlement asset.
+ */
+export async function getUsageSummary(db: Queryable, sellerId: string): Promise<UsageSummary> {
+  const totals = await db.query<{ total_calls: number; active_wallets: number }>(
+    `SELECT COUNT(*)::int AS total_calls,
+            COUNT(DISTINCT wallet_address)::int AS active_wallets
+     FROM usage_events
+     WHERE seller_id = $1`,
+    [sellerId],
+  );
+  const byAsset = await db.query<AssetRevenue>(
+    `SELECT asset,
+            COALESCE(SUM(amount), 0)::text AS amount,
+            COUNT(*)::int AS calls
+     FROM usage_events
+     WHERE seller_id = $1
+     GROUP BY asset
+     ORDER BY asset ASC`,
+    [sellerId],
+  );
+  const row = totals.rows[0]!;
+  return {
+    totalCalls: row.total_calls,
+    activeWallets: row.active_wallets,
+    revenueByAsset: byAsset.rows,
+  };
+}
+
+export interface EndpointUsage {
+  endpoint: string;
+  calls: number;
+  /** Summed amount across all assets (human unit), as a decimal string. */
+  revenue: string;
+}
+
+/** The busiest endpoints for a seller, most-called first. */
+export async function getTopEndpoints(
+  db: Queryable,
+  sellerId: string,
+  limit = 20,
+): Promise<EndpointUsage[]> {
+  const { rows } = await db.query<EndpointUsage>(
+    `SELECT endpoint,
+            COUNT(*)::int AS calls,
+            COALESCE(SUM(amount), 0)::text AS revenue
+     FROM usage_events
+     WHERE seller_id = $1
+     GROUP BY endpoint
+     ORDER BY calls DESC, endpoint ASC
+     LIMIT $2`,
+    [sellerId, limit],
+  );
+  return rows;
+}
+
+export interface WalletUsage {
+  walletAddress: string;
+  calls: number;
+  /** Summed spend across all assets (human unit), as a decimal string. */
+  spend: string;
+}
+
+/** Per-wallet call count and spend for a seller, biggest spender first. */
+export async function getUsageByWallet(db: Queryable, sellerId: string): Promise<WalletUsage[]> {
+  const { rows } = await db.query<{ wallet_address: string; calls: number; spend: string }>(
+    `SELECT wallet_address,
+            COUNT(*)::int AS calls,
+            COALESCE(SUM(amount), 0)::text AS spend
+     FROM usage_events
+     WHERE seller_id = $1
+     GROUP BY wallet_address
+     ORDER BY spend DESC, wallet_address ASC`,
+    [sellerId],
+  );
+  return rows.map((r) => ({ walletAddress: r.wallet_address, calls: r.calls, spend: r.spend }));
+}
+
 export async function getEscrowCreditByTxHash(
   db: Queryable,
   depositTxHash: string,

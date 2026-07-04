@@ -12,8 +12,9 @@ import {
   getSeller,
   insertUsageEvent,
 } from '../db/repositories.js';
-import type { EscrowCreditRow } from '../db/types.js';
+import type { EscrowCreditRow, UsageEventRow } from '../db/types.js';
 import { PaymentMode } from '@app/shared';
+import { publishUsageEvent } from './usage.service.js';
 import { XrplService } from './xrpl.service.js';
 import { decimalGte, isDecimalString } from '../util/decimal.js';
 import type { GatewayDeps } from '../deps.js';
@@ -126,6 +127,7 @@ export async function debitEscrow(
   amount: string,
 ): Promise<EscrowDebitResult> {
   const client = await deps.pool.connect();
+  let usageEvent: UsageEventRow;
   try {
     await client.query('BEGIN');
     const debited = await debitEscrowCredit(client, sellerId, walletAddress, amount);
@@ -133,7 +135,7 @@ export async function debitEscrow(
       await client.query('ROLLBACK');
       return { ok: false, reason: 'insufficient escrow credits' };
     }
-    await insertUsageEvent(client, {
+    usageEvent = await insertUsageEvent(client, {
       sellerId,
       walletAddress,
       endpoint,
@@ -143,13 +145,15 @@ export async function debitEscrow(
       txHash: null,
     });
     await client.query('COMMIT');
-    return { ok: true };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
   }
+
+  await publishUsageEvent(deps.redis, usageEvent);
+  return { ok: true };
 }
 
 type AmountResult = { ok: true; human: string } | { ok: false; reason: string };

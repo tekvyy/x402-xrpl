@@ -5,6 +5,7 @@
  * (backing the US-005 `/verify` endpoint). Both reuse {@link verifyPayPerCall}.
  */
 import type { Pool } from 'pg';
+import type { Redis } from 'ioredis';
 import {
   Asset,
   ChallengeStatus,
@@ -28,12 +29,15 @@ import {
   transitionChallengeStatus,
 } from '../db/repositories.js';
 import type { ChallengeRow, SellerRow } from '../db/types.js';
+import type { UsageEventRow } from '../db/types.js';
 import { verifyPayPerCall, verifyPrepaidClaim } from './verify.service.js';
 import type { VerifyContext } from './verify.service.js';
+import { publishUsageEvent } from './usage.service.js';
 import { XrplService } from './xrpl.service.js';
 
 export interface SettleDeps {
   pool: Pool;
+  redis: Redis;
   xrpl: XrplService;
   env: AppEnv;
 }
@@ -155,6 +159,7 @@ export async function settle(
   if (!result.ok) return reject(result.reason);
 
   const client = await deps.pool.connect();
+  let usageEvent: UsageEventRow;
   try {
     await client.query('BEGIN');
 
@@ -176,7 +181,7 @@ export async function settle(
       txHash: result.txHash,
       sourceTag,
     });
-    await insertUsageEvent(client, {
+    usageEvent = await insertUsageEvent(client, {
       sellerId: seller.id,
       walletAddress: result.payer,
       endpoint: challenge.resource,
@@ -193,6 +198,8 @@ export async function settle(
   } finally {
     client.release();
   }
+
+  await publishUsageEvent(deps.redis, usageEvent);
 
   return {
     result: SettleResult.SETTLED,
@@ -229,6 +236,7 @@ async function settlePrepaidCredits(
   if (!result.ok) return reject(result.reason);
 
   const client = await deps.pool.connect();
+  let usageEvent: UsageEventRow;
   try {
     await client.query('BEGIN');
 
@@ -251,7 +259,7 @@ async function settlePrepaidCredits(
       return reject('claim is stale, duplicate, or exceeds the channel deposit');
     }
 
-    await insertUsageEvent(client, {
+    usageEvent = await insertUsageEvent(client, {
       sellerId: seller.id,
       walletAddress: channel.wallet_address,
       endpoint: challenge.resource,
@@ -268,6 +276,8 @@ async function settlePrepaidCredits(
   } finally {
     client.release();
   }
+
+  await publishUsageEvent(deps.redis, usageEvent);
 
   return {
     result: SettleResult.SETTLED,
