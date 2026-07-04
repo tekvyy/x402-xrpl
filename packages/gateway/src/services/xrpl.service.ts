@@ -10,6 +10,28 @@ import { Client, Wallet, xrpToDrops } from 'xrpl';
 import type { Amount, Payment, PaymentChannelClaim, TxResponse } from 'xrpl';
 import { Asset, RLUSD_CURRENCY_CODE } from '@app/shared';
 
+/** A gateway-submitted transaction reduced to the fields the source-tag audit checks. */
+export interface SubmittedTx {
+  hash: string;
+  type: string;
+  /** The `SourceTag` on the transaction, or `undefined` when it carries none. */
+  sourceTag: number | undefined;
+}
+
+/** The `account_tx` entry fields we read (shape varies across xrpl.js versions). */
+interface AccountTxEntry {
+  hash?: string;
+  tx?: AccountTxInner;
+  tx_json?: AccountTxInner;
+}
+
+interface AccountTxInner {
+  Account?: string;
+  TransactionType: string;
+  SourceTag?: number;
+  hash?: string;
+}
+
 /** The PayChannel ledger-entry fields we read (xrpl.js does not export the type). */
 export interface PayChannelEntry {
   LedgerEntryType: 'PayChannel';
@@ -92,6 +114,38 @@ export class XrplService {
   async getTransaction(txHash: string): Promise<TxResponse> {
     await this.connect();
     return this.client.request({ command: 'tx', transaction: txHash });
+  }
+
+  /**
+   * Fetch recent transactions submitted *by* the gateway wallet (outbound),
+   * for the source-tag audit (US-008). Only transactions whose `Account` is the
+   * gateway wallet are returned — the settlements and channel redeems the
+   * gateway itself signed, each of which must carry the configured `SourceTag`.
+   */
+  async getGatewaySubmittedTransactions(limit = 200): Promise<SubmittedTx[]> {
+    await this.connect();
+    const address = this.address();
+    const response = await this.client.request({
+      command: 'account_tx',
+      account: address,
+      ledger_index_min: -1,
+      ledger_index_max: -1,
+      limit,
+      binary: false,
+    });
+    const entries = response.result.transactions as unknown as readonly AccountTxEntry[];
+
+    const submitted: SubmittedTx[] = [];
+    for (const entry of entries) {
+      const tx = entry.tx ?? entry.tx_json;
+      if (!tx || tx.Account !== address) continue;
+      submitted.push({
+        hash: tx.hash ?? entry.hash ?? '',
+        type: tx.TransactionType,
+        sourceTag: tx.SourceTag,
+      });
+    }
+    return submitted;
   }
 
   /** Build the XRPL `Amount` for a price expressed in the asset's human unit. */

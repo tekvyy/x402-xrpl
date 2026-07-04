@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/server.js",
-    "dev": "node --watch dist/server.js"
+    "dev": "node --watch dist/server.js",
+    "audit:source-tag": "node dist/scripts/audit-source-tag.js"
   },
   "dependencies": {
     "@app/shared": "workspace:*",

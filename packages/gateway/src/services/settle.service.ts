@@ -55,6 +55,15 @@ export interface SettleOutcome {
 
 const reject = (reason: string): SettleOutcome => ({ result: SettleResult.REJECTED, reason });
 
+/** Postgres unique-violation SQLSTATE — a concurrent settle already recorded this row. */
+const PG_UNIQUE_VIOLATION = '23505';
+
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' && err !== null && (err as { code?: string }).code === PG_UNIQUE_VIOLATION
+  );
+}
+
 interface LoadedChallenge {
   challenge: ChallengeRow;
   seller: SellerRow;
@@ -194,6 +203,9 @@ export async function settle(
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
+    // A concurrent settle already recorded this transaction (unique tx_hash) —
+    // treat it as a rejected replay rather than a server error.
+    if (isUniqueViolation(err)) return reject('this transaction has already been settled');
     throw err;
   } finally {
     client.release();
