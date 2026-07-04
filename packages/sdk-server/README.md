@@ -1,0 +1,77 @@
+# @app/sdk-server
+
+x402 **middleware** for sellers who prefer code over the drop-in proxy. Price
+any Express or Fastify route per call in RLUSD or XRP; the middleware delegates
+every verify/settle decision to the gateway facilitator, so there is no
+duplicated x402 protocol logic.
+
+## How it works
+
+```
+client ──GET /premium──────────────► your server (x402 middleware)
+                                          │  no X-PAYMENT
+       ◄──402 { accepts:[…] }────────────┤  POST gateway /challenge
+client pays (X-PAYMENT header)            │
+       ──GET /premium + X-PAYMENT───────► │  POST gateway /settle
+                                          │  SETTLED → next()
+       ◄──200 + X-PAYMENT-RESPONSE───────┘  route handler runs
+```
+
+Pricing (amount, asset, payTo, mode) lives in the seller's **gateway
+registration** — the single source of truth — not in the middleware config.
+The middleware only needs the facilitator URL and the registered `sellerId`.
+
+## Register the seller once
+
+```bash
+curl -X POST http://localhost:8402/sellers -H 'content-type: application/json' -d '{
+  "name": "My Priced API",
+  "originUrl": "http://localhost:3000",
+  "payToAddress": "rSellerXRPLAddress...",
+  "priceAmount": "0.01",
+  "priceAsset": "XRP",
+  "paymentMode": "PAY_PER_CALL"
+}'
+# → { "sellerId": "…", "gatewayUrl": "…" }
+```
+
+## Express
+
+```ts
+import express from 'express';
+import { x402Express } from '@app/sdk-server';
+
+const app = express();
+const pay = x402Express({
+  gatewayUrl: 'http://localhost:8402',
+  sellerId: process.env.SELLER_ID!,
+});
+
+app.get('/premium', pay, (_req, res) => {
+  res.json({ secret: 42 });
+});
+
+app.listen(3000);
+```
+
+## Fastify
+
+```ts
+import Fastify from 'fastify';
+import { x402Fastify } from '@app/sdk-server';
+
+const app = Fastify();
+const pay = x402Fastify({
+  gatewayUrl: 'http://localhost:8402',
+  sellerId: process.env.SELLER_ID!,
+});
+
+app.get('/premium', { preHandler: pay }, async () => ({ secret: 42 }));
+
+await app.listen({ port: 3000 });
+```
+
+Clients pay transparently with `x402fetch` from `@app/sdk-client`.
+
+> `express` and `fastify` are optional peer dependencies — install only the one
+> you use.
