@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@app/shared": "workspace:*"
+    "@app/shared": "workspace:*",
+    "xrpl": "^4.1.0"
   },
   "devDependencies": {
     "typescript": "^5.7.2"
