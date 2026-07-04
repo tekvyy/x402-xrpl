@@ -18,10 +18,17 @@ import {
   decodeHeaderPayload,
   encodeHeaderPayload,
 } from '@app/shared';
-import type { PaymentRequirements, PaymentResponse, PayPerCallPayload } from '@app/shared';
+import type {
+  PaymentRequirements,
+  PaymentResponse,
+  PayPerCallPayload,
+  PrepaidCreditsPayload,
+} from '@app/shared';
 import { decimalGte } from './decimal.js';
 import { ensureTrustline } from './trustline.js';
 import { payChallenge } from './payment.js';
+import { hasCredits, signClaim } from './channel.js';
+import type { ChannelHandle } from './channel.js';
 
 /** Per-call configuration for {@link x402fetch}, carried on the request init. */
 export interface X402Config {
@@ -37,6 +44,12 @@ export interface X402Config {
   preferAsset?: Asset;
   /** Manage the RLUSD trustline automatically before paying (default `true`). */
   manageTrustline?: boolean;
+  /**
+   * An open PayChan channel. When present and the (XRP) challenge fits within
+   * remaining credits, the request is paid off-ledger with a signed claim
+   * instead of an on-chain Payment. Falls back to pay-per-call otherwise.
+   */
+  channel?: ChannelHandle;
 }
 
 /** `fetch` init extended with the x402 payment configuration. */
@@ -113,6 +126,13 @@ export async function x402fetch(
   const requirements = selectRequirement(body, x402.preferAsset);
   guardMaxAmount(requirements, x402.maxAmount);
 
+  // Fast path: pay off-ledger from an open channel when credits allow. If the
+  // gateway rejects the claim (still 402), fall through to pay-per-call.
+  if (canUseCredits(requirements, x402.channel)) {
+    const response = await payViaCredits(url, requestInit, x402, requirements, x402.channel!);
+    if (response.status !== 402) return response;
+  }
+
   if (requirements.asset === Asset.RLUSD && x402.manageTrustline !== false) {
     if (!requirements.issuer) throw new Error('RLUSD challenge is missing the issuer address');
     await ensureTrustline(x402.client, x402.wallet, requirements.issuer);
@@ -136,6 +156,49 @@ export async function x402fetch(
   const headers = new Headers(requestInit.headers);
   headers.set(X402Header.X_PAYMENT, encodeHeaderPayload(payload));
   return fetch(url, { ...requestInit, headers });
+}
+
+/** Whether the challenge can be paid from `channel`'s remaining credits. */
+function canUseCredits(
+  requirements: PaymentRequirements,
+  channel: ChannelHandle | undefined,
+): channel is ChannelHandle {
+  if (!channel || requirements.asset !== Asset.XRP) return false;
+  return hasCredits(channel, requirements.amount);
+}
+
+/**
+ * Pay a challenge with a signed PayChan claim. On acceptance (non-402), advance
+ * the channel's cumulative counter so the next claim stays strictly monotonic.
+ */
+async function payViaCredits(
+  url: string | URL,
+  requestInit: RequestInit,
+  x402: X402Config,
+  requirements: PaymentRequirements,
+  channel: ChannelHandle,
+): Promise<Response> {
+  const newCumulative = (
+    BigInt(channel.cumulativeDrops) + BigInt(requirements.amount)
+  ).toString();
+  const signature = signClaim(x402.wallet, channel.channelId, newCumulative);
+
+  const payload: PrepaidCreditsPayload = {
+    mode: PaymentMode.PREPAID_CREDITS,
+    asset: Asset.XRP,
+    nonce: requirements.nonce,
+    channelId: channel.channelId,
+    cumulativeAmount: newCumulative,
+    signature,
+    payer: x402.wallet.classicAddress,
+  };
+
+  const headers = new Headers(requestInit.headers);
+  headers.set(X402Header.X_PAYMENT, encodeHeaderPayload(payload));
+  const response = await fetch(url, { ...requestInit, headers });
+
+  if (response.status !== 402) channel.cumulativeDrops = newCumulative;
+  return response;
 }
 
 /** Decode the `X-PAYMENT-RESPONSE` header (settlement result) from a response. */

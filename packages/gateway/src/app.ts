@@ -7,6 +7,7 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { registerSellerRoutes } from './routes/sellers.route.js';
+import { registerChannelRoutes } from './routes/channels.route.js';
 import { registerProxyRoutes } from './routes/proxy.route.js';
 import type { GatewayDeps } from './deps.js';
 
@@ -18,6 +19,7 @@ export async function buildApp(deps: GatewayDeps): Promise<FastifyInstance> {
   app.get('/health', async () => ({ status: 'ok' }));
 
   registerSellerRoutes(app, deps);
+  registerChannelRoutes(app, deps);
   registerProxyRoutes(app, deps);
 
   return app;

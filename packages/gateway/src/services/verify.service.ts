@@ -5,9 +5,10 @@
  * `/verify` facilitator endpoint (US-005) without duplication.
  */
 import { Asset } from '@app/shared';
-import type { PayPerCallPayload } from '@app/shared';
-import { xrpToDrops } from 'xrpl';
+import type { PayPerCallPayload, PrepaidCreditsPayload } from '@app/shared';
+import { dropsToXrp, verifyPaymentChannelClaim, xrpToDrops } from 'xrpl';
 import { decimalGte, isDecimalString } from '../util/decimal.js';
+import type { ChannelRow } from '../db/types.js';
 import { XrplService } from './xrpl.service.js';
 
 /** Everything the verifier needs to check a payment against a challenge. */
@@ -155,6 +156,75 @@ function checkAmount(ctx: VerifyContext, delivered: unknown): AmountCheck {
     return fail('paid amount is below the price');
   }
   return { ok: true, human: delivered.value };
+}
+
+/** A verified prepaid claim, ready to be applied to the channel ledger. */
+export interface PrepaidVerifyOk {
+  ok: true;
+  /** New cumulative authorized amount in the asset's human unit. */
+  newCumulativeHuman: string;
+  /** Price charged for this call in the human unit (the challenge amount). */
+  chargeHuman: string;
+  /** Validated claim signature. */
+  signature: string;
+}
+
+export type PrepaidVerifyResult = PrepaidVerifyOk | VerifyErr;
+
+/**
+ * Verify a prepaid-credits PayChan claim against its channel — side-effect
+ * free, so it backs both `/settle` and (later) `/verify`. Checks the channel is
+ * usable, the signature is valid for the cumulative amount, the amount is
+ * strictly monotonic and within the deposit, and the increment covers the
+ * call's price. XRPL PayChan is XRP-native, so only XRP claims are accepted.
+ */
+export function verifyPrepaidClaim(
+  payload: PrepaidCreditsPayload,
+  channel: ChannelRow,
+  ctx: VerifyContext,
+): PrepaidVerifyResult {
+  if (ctx.requiredAsset !== Asset.XRP) {
+    return fail('PayChan credits support XRP only; use pay-per-call or escrow for RLUSD');
+  }
+  if (payload.asset !== ctx.requiredAsset) return fail('asset does not match the challenge');
+  if (channel.asset !== Asset.XRP) return fail('channel asset is not XRP');
+  if (channel.wallet_address !== payload.payer) return fail('claim payer does not own the channel');
+  if (!channel.public_key) return fail('channel is missing its signing public key');
+
+  if (!isDecimalString(payload.cumulativeAmount)) return fail('cumulative amount is not numeric');
+  const newCumulativeHuman = String(dropsToXrp(payload.cumulativeAmount));
+
+  const signatureValid = verifyPaymentChannelClaim(
+    payload.channelId,
+    newCumulativeHuman,
+    payload.signature,
+    channel.public_key,
+  );
+  if (!signatureValid) return fail('claim signature is invalid');
+
+  if (!decimalGte(channel.credits_total, newCumulativeHuman)) {
+    return fail('claim exceeds the channel deposit');
+  }
+  if (decimalGte(channel.credits_used, newCumulativeHuman)) {
+    return fail('claim is stale or duplicate (not strictly increasing)');
+  }
+  const increment = subtractHuman(newCumulativeHuman, channel.credits_used);
+  if (!decimalGte(increment, ctx.requiredAmount)) {
+    return fail('claim increment does not cover the call price');
+  }
+
+  return {
+    ok: true,
+    newCumulativeHuman,
+    chargeHuman: ctx.requiredAmount,
+    signature: payload.signature,
+  };
+}
+
+/** Subtract two non-negative XRP decimal strings (a >= b) at drop precision. */
+function subtractHuman(a: string, b: string): string {
+  const diffDrops = BigInt(xrpToDrops(a)) - BigInt(xrpToDrops(b));
+  return dropsToXrpString(diffDrops.toString());
 }
 
 /** Convert an integer drops string to a plain XRP decimal string. */

@@ -12,16 +12,23 @@ import {
   SettleResult,
   explorerTxUrl,
 } from '@app/shared';
-import type { AppEnv, PaymentPayload, PayPerCallPayload } from '@app/shared';
+import type {
+  AppEnv,
+  PaymentPayload,
+  PayPerCallPayload,
+  PrepaidCreditsPayload,
+} from '@app/shared';
 import {
+  applyChannelClaim,
   getChallengeByNonce,
+  getChannelByChannelId,
   getSeller,
   insertPayment,
   insertUsageEvent,
   transitionChallengeStatus,
 } from '../db/repositories.js';
 import type { ChallengeRow, SellerRow } from '../db/types.js';
-import { verifyPayPerCall } from './verify.service.js';
+import { verifyPayPerCall, verifyPrepaidClaim } from './verify.service.js';
 import type { VerifyContext } from './verify.service.js';
 import { XrplService } from './xrpl.service.js';
 
@@ -57,7 +64,7 @@ interface LoadedChallenge {
  */
 async function loadChallenge(
   deps: SettleDeps,
-  payload: PayPerCallPayload,
+  payload: Pick<PaymentPayload, 'nonce'>,
   sellerId: string,
 ): Promise<LoadedChallenge | SettleOutcome> {
   const challenge = await getChallengeByNonce(deps.pool, payload.nonce);
@@ -91,12 +98,22 @@ export async function verify(
   payload: PaymentPayload,
   sellerId: string,
 ): Promise<SettleOutcome> {
-  if (payload.mode !== PaymentMode.PAY_PER_CALL) {
-    return reject('prepaid credits are implemented in US-004');
-  }
-
   const loaded = await loadChallenge(deps, payload, sellerId);
   if ('result' in loaded) return loaded;
+
+  if (payload.mode === PaymentMode.PREPAID_CREDITS) {
+    const channel = await getChannelByChannelId(deps.pool, payload.channelId);
+    if (!channel) return reject('unknown channel');
+    if (channel.seller_id !== sellerId) return reject('channel does not belong to this seller');
+    const result = verifyPrepaidClaim(payload, channel, loaded.ctx);
+    if (!result.ok) return reject(result.reason);
+    return {
+      result: SettleResult.VERIFIED,
+      seller: loaded.seller,
+      challenge: loaded.challenge,
+      amount: result.chargeHuman,
+    };
+  }
 
   const result = await verifyPayPerCall(deps.xrpl, payload, loaded.ctx);
   if (!result.ok) return reject(result.reason);
@@ -121,12 +138,13 @@ export async function settle(
   payload: PaymentPayload,
   sellerId: string,
 ): Promise<SettleOutcome> {
-  if (payload.mode !== PaymentMode.PAY_PER_CALL) {
-    return reject('prepaid credits are implemented in US-004');
-  }
-
   const loaded = await loadChallenge(deps, payload, sellerId);
   if ('result' in loaded) return loaded;
+
+  if (payload.mode === PaymentMode.PREPAID_CREDITS) {
+    return settlePrepaidCredits(deps, payload, loaded);
+  }
+
   const { challenge, seller } = loaded;
 
   if (challenge.status !== ChallengeStatus.PENDING) {
@@ -183,6 +201,79 @@ export async function settle(
     seller,
     challenge,
     amount: result.deliveredHuman,
+  };
+}
+
+/**
+ * Settle a prepaid-credits claim: verify the PayChan claim, then atomically
+ * consume the single-use challenge, advance the channel's credits, and record
+ * the metered call as a usage event — all off-ledger (no per-call on-chain tx).
+ * The on-chain settlement happens later via {@link redeemChannel}.
+ */
+async function settlePrepaidCredits(
+  deps: SettleDeps,
+  payload: PrepaidCreditsPayload,
+  loaded: LoadedChallenge,
+): Promise<SettleOutcome> {
+  const { challenge, seller, ctx } = loaded;
+
+  if (challenge.status !== ChallengeStatus.PENDING) {
+    return reject('nonce has already been used');
+  }
+
+  const channel = await getChannelByChannelId(deps.pool, payload.channelId);
+  if (!channel) return reject('unknown channel');
+  if (channel.seller_id !== seller.id) return reject('channel does not belong to this seller');
+
+  const result = verifyPrepaidClaim(payload, channel, ctx);
+  if (!result.ok) return reject(result.reason);
+
+  const client = await deps.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const consumed = await transitionChallengeStatus(client, challenge.id, ChallengeStatus.CONSUMED, [
+      ChallengeStatus.PENDING,
+    ]);
+    if (!consumed) {
+      await client.query('ROLLBACK');
+      return reject('nonce has already been used');
+    }
+
+    const applied = await applyChannelClaim(client, {
+      channelId: payload.channelId,
+      newCumulative: result.newCumulativeHuman,
+      minIncrement: result.chargeHuman,
+      signature: result.signature,
+    });
+    if (!applied) {
+      await client.query('ROLLBACK');
+      return reject('claim is stale, duplicate, or exceeds the channel deposit');
+    }
+
+    await insertUsageEvent(client, {
+      sellerId: seller.id,
+      walletAddress: channel.wallet_address,
+      endpoint: challenge.resource,
+      amount: result.chargeHuman,
+      asset: challenge.asset,
+      mode: PaymentMode.PREPAID_CREDITS,
+      txHash: null,
+    });
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  return {
+    result: SettleResult.SETTLED,
+    seller,
+    challenge,
+    amount: result.chargeHuman,
   };
 }
 

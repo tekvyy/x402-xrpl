@@ -3,7 +3,7 @@
  * `pg` (to preserve precision) and we keep them as strings end-to-end; enum
  * columns are typed with the shared enums so the DB and wire stay in lockstep.
  */
-import type { Asset, ChallengeStatus, PaymentMode } from '@app/shared';
+import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode } from '@app/shared';
 
 export interface SellerRow {
   id: string;
@@ -51,5 +51,36 @@ export interface UsageEventRow {
   asset: Asset;
   mode: PaymentMode;
   tx_hash: string | null;
+  created_at: Date;
+}
+
+export interface ChannelRow {
+  id: string;
+  channel_id: string;
+  wallet_address: string;
+  seller_id: string;
+  /** Deposit in the asset's human unit (XRP; PayChan is XRP-native). */
+  deposit_amount: string;
+  asset: Asset;
+  /** Total credits available (human unit), equal to the deposit. */
+  credits_total: string;
+  /** Cumulative credits spent (human unit) — the latest claim's amount. */
+  credits_used: string;
+  /** Latest accepted claim signature; null until the first claim. */
+  last_claim_signature: string | null;
+  /** Channel signing public key (hex), read from the ledger at registration. */
+  public_key: string | null;
+  status: ChannelStatus;
+  created_at: Date;
+}
+
+export interface EscrowCreditRow {
+  id: string;
+  seller_id: string;
+  wallet_address: string;
+  asset: Asset;
+  deposit_tx_hash: string;
+  credits_total: string;
+  credits_used: string;
   created_at: Date;
 }

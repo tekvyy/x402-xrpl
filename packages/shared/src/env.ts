@@ -18,6 +18,12 @@ const EnvSchema = z.object({
   REDIS_URL: z.string().url(),
   GATEWAY_PORT: z.coerce.number().int().positive(),
   DASHBOARD_ORIGIN: z.string().url(),
+  // Optional: enables the custodial escrow-credits fallback (US-004). Off by
+  // default; the authentic path is PayChan. Accepts `true`/`1`/`false`/`0`.
+  ESCROW_ENABLED: z
+    .enum(['true', 'false', '1', '0'])
+    .optional()
+    .transform((value) => value === 'true' || value === '1'),
 });
 
 /** Fully resolved config, with `xrplEndpoint` defaulted from the network. */
@@ -31,6 +37,8 @@ export interface AppEnv {
   redisUrl: string;
   gatewayPort: number;
   dashboardOrigin: string;
+  /** Whether the config-gated escrow-credits fallback is enabled (US-004). */
+  escrowEnabled: boolean;
 }
 
 /**
@@ -57,5 +65,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     redisUrl: data.REDIS_URL,
     gatewayPort: data.GATEWAY_PORT,
     dashboardOrigin: data.DASHBOARD_ORIGIN,
+    escrowEnabled: data.ESCROW_ENABLED ?? false,
   };
 }

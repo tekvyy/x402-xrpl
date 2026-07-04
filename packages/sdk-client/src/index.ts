@@ -9,6 +9,8 @@ export { loadWallet, createClient, ensureConnected } from './wallet.js';
 export { ensureTrustline, DEFAULT_RLUSD_TRUST_LIMIT } from './trustline.js';
 export { payChallenge } from './payment.js';
 export type { PayChallengeParams } from './payment.js';
+export { openChannel, signClaim, hasCredits, DEFAULT_SETTLE_DELAY } from './channel.js';
+export type { OpenChannelParams, ChannelHandle } from './channel.js';
 export { currencyToHex, rlusdCurrency } from './currency.js';
 export {
   x402fetch,

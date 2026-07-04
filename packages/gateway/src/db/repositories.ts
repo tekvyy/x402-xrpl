@@ -3,9 +3,16 @@
  * so callers can run inside a transaction by passing a checked-out client.
  * SQL is parameterized; no string interpolation of user input.
  */
-import type { Asset, ChallengeStatus, PaymentMode } from '@app/shared';
+import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode } from '@app/shared';
 import type { Queryable } from './pool.js';
-import type { ChallengeRow, PaymentRow, SellerRow, UsageEventRow } from './types.js';
+import type {
+  ChallengeRow,
+  ChannelRow,
+  EscrowCreditRow,
+  PaymentRow,
+  SellerRow,
+  UsageEventRow,
+} from './types.js';
 
 export interface CreateSellerInput {
   name: string;
@@ -92,7 +99,7 @@ export async function transitionChallengeStatus(
 }
 
 export interface InsertPaymentInput {
-  challengeId: string;
+  challengeId: string | null;
   walletAddress: string;
   mode: PaymentMode;
   amount: string;
@@ -148,4 +155,150 @@ export async function insertUsageEvent(
     ],
   );
   return rows[0]!;
+}
+
+export interface CreateChannelInput {
+  channelId: string;
+  walletAddress: string;
+  sellerId: string;
+  depositAmount: string;
+  asset: Asset;
+  creditsTotal: string;
+  publicKey: string;
+}
+
+export async function createChannel(db: Queryable, input: CreateChannelInput): Promise<ChannelRow> {
+  const { rows } = await db.query<ChannelRow>(
+    `INSERT INTO channels
+       (channel_id, wallet_address, seller_id, deposit_amount, asset, credits_total, public_key)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [
+      input.channelId,
+      input.walletAddress,
+      input.sellerId,
+      input.depositAmount,
+      input.asset,
+      input.creditsTotal,
+      input.publicKey,
+    ],
+  );
+  return rows[0]!;
+}
+
+export async function getChannelByChannelId(
+  db: Queryable,
+  channelId: string,
+): Promise<ChannelRow | null> {
+  const { rows } = await db.query<ChannelRow>(`SELECT * FROM channels WHERE channel_id = $1`, [
+    channelId,
+  ]);
+  return rows[0] ?? null;
+}
+
+export interface ApplyChannelClaimInput {
+  channelId: string;
+  /** New cumulative amount (human unit) the claim authorizes. */
+  newCumulative: string;
+  /** Minimum increment this call must cover (the challenge price). */
+  minIncrement: string;
+  signature: string;
+}
+
+/**
+ * Atomically accept a claim: advance `credits_used` to `newCumulative` and
+ * store its signature, but only when the channel is OPEN, the amount is
+ * strictly greater than the last (monotonic), stays within the deposit, and
+ * covers the call's price. Returns the updated row, or `null` when any guard
+ * fails — the single point that rejects stale/duplicate/over-limit claims,
+ * safe under concurrency.
+ */
+export async function applyChannelClaim(
+  db: Queryable,
+  input: ApplyChannelClaimInput,
+): Promise<ChannelRow | null> {
+  const { rows } = await db.query<ChannelRow>(
+    `UPDATE channels
+     SET credits_used = $2::numeric, last_claim_signature = $3
+     WHERE channel_id = $1
+       AND status = 'OPEN'::channel_status_enum
+       AND credits_used < $2::numeric
+       AND $2::numeric <= credits_total
+       AND ($2::numeric - credits_used) >= $4::numeric
+     RETURNING *`,
+    [input.channelId, input.newCumulative, input.signature, input.minIncrement],
+  );
+  return rows[0] ?? null;
+}
+
+export async function setChannelStatus(
+  db: Queryable,
+  channelId: string,
+  status: ChannelStatus,
+): Promise<void> {
+  await db.query(`UPDATE channels SET status = $2::channel_status_enum WHERE channel_id = $1`, [
+    channelId,
+    status,
+  ]);
+}
+
+export interface CreateEscrowCreditInput {
+  sellerId: string;
+  walletAddress: string;
+  asset: Asset;
+  depositTxHash: string;
+  creditsTotal: string;
+}
+
+export async function createEscrowCredit(
+  db: Queryable,
+  input: CreateEscrowCreditInput,
+): Promise<EscrowCreditRow> {
+  const { rows } = await db.query<EscrowCreditRow>(
+    `INSERT INTO escrow_credits
+       (seller_id, wallet_address, asset, deposit_tx_hash, credits_total)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [input.sellerId, input.walletAddress, input.asset, input.depositTxHash, input.creditsTotal],
+  );
+  return rows[0]!;
+}
+
+export async function getEscrowCreditByTxHash(
+  db: Queryable,
+  depositTxHash: string,
+): Promise<EscrowCreditRow | null> {
+  const { rows } = await db.query<EscrowCreditRow>(
+    `SELECT * FROM escrow_credits WHERE deposit_tx_hash = $1`,
+    [depositTxHash],
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * Atomically debit `amount` (human unit) of escrow credits for a wallet, only
+ * when sufficient unused balance remains. Returns the updated row, or `null`
+ * when the balance is insufficient — the off-ledger debit guard.
+ */
+export async function debitEscrowCredit(
+  db: Queryable,
+  sellerId: string,
+  walletAddress: string,
+  amount: string,
+): Promise<EscrowCreditRow | null> {
+  const { rows } = await db.query<EscrowCreditRow>(
+    `UPDATE escrow_credits
+     SET credits_used = credits_used + $3::numeric
+     WHERE id = (
+       SELECT id FROM escrow_credits
+       WHERE seller_id = $1 AND wallet_address = $2
+         AND (credits_total - credits_used) >= $3::numeric
+       ORDER BY created_at ASC
+       LIMIT 1
+       FOR UPDATE
+     )
+     RETURNING *`,
+    [sellerId, walletAddress, amount],
+  );
+  return rows[0] ?? null;
 }
