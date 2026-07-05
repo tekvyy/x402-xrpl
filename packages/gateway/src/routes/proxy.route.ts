@@ -111,18 +111,30 @@ async function forwardToOrigin(
       : JSON.stringify(request.body)
     : undefined;
 
-  const upstream = await fetch(target, { method, headers, body });
+  const paymentResponse: PaymentResponse = {
+    result: SettleResult.SETTLED,
+    txHash: outcome.txHash,
+    explorerUrl: outcome.explorerUrl,
+  };
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, { method, headers, body });
+  } catch {
+    // The payment already settled but the origin is unreachable. Surface the
+    // settlement proof so the buyer has an on-chain record of what they paid
+    // for, and return 502 rather than an opaque 500.
+    return reply
+      .code(502)
+      .header(X402Header.X_PAYMENT_RESPONSE, encodeHeaderPayload(paymentResponse))
+      .send({ error: 'origin unreachable', txHash: outcome.txHash });
+  }
 
   reply.code(upstream.status);
   upstream.headers.forEach((value, key) => {
     if (!HOP_BY_HOP.has(key.toLowerCase())) reply.header(key, value);
   });
 
-  const paymentResponse: PaymentResponse = {
-    result: SettleResult.SETTLED,
-    txHash: outcome.txHash,
-    explorerUrl: outcome.explorerUrl,
-  };
   reply.header(X402Header.X_PAYMENT_RESPONSE, encodeHeaderPayload(paymentResponse));
 
   if (!upstream.body) return reply.send();

@@ -114,3 +114,158 @@ export async function fetchByWallet(
 export function usageStreamUrl(sellerId: string): string {
   return `${GATEWAY_URL}/usage/stream?sellerId=${encodeURIComponent(sellerId)}`;
 }
+
+// --- Sign-in-with-XRPL handshake --------------------------------------------
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${GATEWAY_URL}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    let detail = `Gateway responded ${response.status}`;
+    try {
+      const b = (await response.json()) as { error?: string };
+      if (b.error) detail = b.error;
+    } catch {
+      // keep default
+    }
+    throw new ApiError(detail, response.status);
+  }
+  return (await response.json()) as T;
+}
+
+/** Request a sign-in challenge for an address. */
+export function requestAuthChallenge(
+  address: string,
+): Promise<{ message: string; nonce: string; expiresAt: number }> {
+  return postJson('/auth/challenge', { address });
+}
+
+/** Exchange a wallet-signed challenge transaction for a session token. */
+export function verifyAuthTx(
+  address: string,
+  txBlob: string,
+): Promise<{ token: string; address: string; expiresAt: number }> {
+  return postJson('/auth/verify-tx', { address, txBlob });
+}
+
+// --- Authenticated endpoints (sign-in-with-XRPL bearer token) ---------------
+
+/** Raised specifically on a 401 so the shell can drop an invalid session. */
+export class UnauthorizedError extends ApiError {
+  constructor() {
+    super('session expired', 401);
+    this.name = 'UnauthorizedError';
+  }
+}
+
+async function authed<T>(
+  path: string,
+  token: string,
+  init: { method?: string; body?: unknown } = {},
+): Promise<T> {
+  const response = await fetch(`${GATEWAY_URL}${path}`, {
+    method: init.method ?? 'GET',
+    headers: {
+      authorization: `Bearer ${token}`,
+      ...(init.body !== undefined ? { 'content-type': 'application/json' } : {}),
+    },
+    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+  });
+  if (response.status === 401) throw new UnauthorizedError();
+  if (!response.ok) {
+    let detail = `Gateway responded ${response.status}`;
+    try {
+      const body = (await response.json()) as { error?: string };
+      if (body.error) detail = body.error;
+    } catch {
+      // keep default detail
+    }
+    throw new ApiError(detail, response.status);
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+/** Input for registering a new API (seller). */
+export interface CreateSellerInput {
+  name: string;
+  originUrl: string;
+  payToAddress: string;
+  priceAmount: string;
+  priceAsset: Asset;
+  paymentMode: PaymentMode;
+}
+
+export function createApi(
+  token: string,
+  input: CreateSellerInput,
+): Promise<{ sellerId: string; gatewayUrl: string }> {
+  return authed('/sellers', token, { method: 'POST', body: input });
+}
+
+export async function fetchMySellers(token: string): Promise<SellerInfo[]> {
+  const data = await authed<{ sellers: SellerInfo[] }>('/sellers', token);
+  return data.sellers;
+}
+
+/** A saved bot configuration (self-custody; never holds a seed). */
+export interface Bot {
+  id: string;
+  label: string;
+  sellerId: string;
+  walletAddress: string;
+  asset: Asset;
+  paymentMode: PaymentMode;
+  resource: string;
+  sourceTag: number;
+  maxAmount: string | null;
+  depositAmount: string | null;
+  meteredCalls: number;
+  createdAt: string;
+}
+
+/** Bot detail with on-chain spend attributed to its wallet. */
+export interface BotWithUsage extends Bot {
+  gatewayUrl: string;
+  usage: { calls: number; spend: string };
+}
+
+/** Input for creating a bot. */
+export interface CreateBotInput {
+  label: string;
+  sellerId: string;
+  walletAddress: string;
+  asset: Asset;
+  paymentMode: PaymentMode;
+  resource: string;
+  maxAmount?: string;
+  depositAmount?: string;
+  meteredCalls: number;
+}
+
+export function createBot(token: string, input: CreateBotInput): Promise<Bot> {
+  return authed('/bots', token, { method: 'POST', body: input });
+}
+
+export async function fetchMyBots(token: string): Promise<Bot[]> {
+  const data = await authed<{ bots: Bot[] }>('/bots', token);
+  return data.bots;
+}
+
+export function fetchBot(token: string, id: string): Promise<BotWithUsage> {
+  return authed(`/bots/${encodeURIComponent(id)}`, token);
+}
+
+export function fetchBotConfig(
+  token: string,
+  id: string,
+): Promise<{ env: string; runCommand: string }> {
+  return authed(`/bots/${encodeURIComponent(id)}/config`, token);
+}
+
+export function deleteBot(token: string, id: string): Promise<void> {
+  return authed(`/bots/${encodeURIComponent(id)}`, token, { method: 'DELETE' });
+}

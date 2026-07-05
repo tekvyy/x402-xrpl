@@ -13,12 +13,7 @@ import {
   SettleResult,
   explorerTxUrl,
 } from '@app/shared';
-import type {
-  AppEnv,
-  PaymentPayload,
-  PayPerCallPayload,
-  PrepaidCreditsPayload,
-} from '@app/shared';
+import type { AppEnv, PaymentPayload, PrepaidCreditsPayload } from '@app/shared';
 import {
   applyChannelClaim,
   getChallengeByNonce,
@@ -87,7 +82,7 @@ async function loadChallenge(
   const seller = await getSeller(deps.pool, sellerId);
   if (!seller) return reject('seller not found');
 
-  if (challenge.expires_at.getTime() < Date.now()) {
+  if (challenge.expires_at.getTime() <= Date.now()) {
     await transitionChallengeStatus(deps.pool, challenge.id, ChallengeStatus.EXPIRED, [
       ChallengeStatus.PENDING,
       ChallengeStatus.PAID,

@@ -18,6 +18,8 @@ export {
   MaxAmountExceededError,
 } from './x402fetch.js';
 export type { X402Config, X402FetchInit } from './x402fetch.js';
+export { signSignInMessage, signInWithGateway } from './auth.js';
+export type { SignInParams, FetchLike } from './auth.js';
 
 /** Header the SDK attaches when retrying a paid request. */
 export const PAYMENT_HEADER: X402Header = X402Header.X_PAYMENT;

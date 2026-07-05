@@ -1,43 +1,35 @@
 /**
- * Seller dashboard shell. Resolves a persisted seller, loads the three
- * aggregate views, and layers a live SSE feed on top — new settlements both
- * append to the feed and trigger an in-place refresh of the aggregates.
+ * Dashboard shell. Gates on a sign-in-with-XRPL session, then presents two
+ * role-aware tabs: "My APIs" (sell — register + monitor origins) and "My Bots"
+ * (buy — configure + monitor self-custody paying agents).
  */
 import { useCallback, useState } from 'react';
-import type { SellerInfo } from './api.js';
-import { SELLER_STORAGE_KEY } from './config.js';
-import { SellerSelector } from './components/SellerSelector.js';
-import { SummaryCards } from './components/SummaryCards.js';
-import { TopEndpoints } from './components/TopEndpoints.js';
-import { WalletTable } from './components/WalletTable.js';
-import { LiveFeed } from './components/LiveFeed.js';
-import { CardSkeleton, EmptyState, ErrorBanner } from './components/States.js';
-import { useUsage } from './hooks/useUsage.js';
-import { useLiveFeed } from './hooks/useLiveFeed.js';
+import { clearSession, loadSession, saveSession, type Session } from './auth.js';
+import { shortenAddress } from './format.js';
+import { Login } from './components/Login.js';
+import { SellerTab } from './components/SellerTab.js';
+import { BotTab } from './components/BotTab.js';
 
-function readStoredSeller(): string | null {
-  try {
-    return window.localStorage.getItem(SELLER_STORAGE_KEY);
-  } catch {
-    return null;
-  }
+enum Tab {
+  APIS = 'APIS',
+  BOTS = 'BOTS',
 }
 
 export function App(): JSX.Element {
-  const [sellerId, setSellerId] = useState<string | null>(readStoredSeller);
+  const [session, setSession] = useState<Session | null>(loadSession);
+  const [tab, setTab] = useState<Tab>(Tab.APIS);
 
-  const handleSelect = useCallback((seller: SellerInfo) => {
-    setSellerId(seller.sellerId);
-    try {
-      window.localStorage.setItem(SELLER_STORAGE_KEY, seller.sellerId);
-    } catch {
-      // Non-fatal: persistence is a convenience, not a requirement.
-    }
+  const authenticate = useCallback((next: Session) => {
+    saveSession(next.token);
+    setSession(next);
   }, []);
 
-  const { data, loading, error, reload } = useUsage(sellerId);
-  // A new settlement means the aggregates are stale — refresh them.
-  const { events, status } = useLiveFeed(sellerId, reload);
+  const logout = useCallback(() => {
+    clearSession();
+    setSession(null);
+  }, []);
+
+  if (!session) return <Login onAuthenticated={authenticate} />;
 
   return (
     <div className="app">
@@ -45,53 +37,44 @@ export function App(): JSX.Element {
         <div className="brand">
           <span className="brand-mark">x402</span>
           <div className="brand-text">
-            <h1>Seller Dashboard</h1>
-            <p>XRPL x402 Monetization Gateway</p>
+            <h1>XRPL x402 Gateway</h1>
+            <p>Monetize APIs · run paying agents</p>
           </div>
         </div>
-        <SellerSelector sellerId={sellerId} onSelect={handleSelect} />
+        <div className="session">
+          <span className="session-addr" title={session.address}>
+            <span className="dot" /> {shortenAddress(session.address)}
+          </span>
+          <button className="btn" type="button" onClick={logout}>
+            Sign out
+          </button>
+        </div>
       </header>
 
+      <nav className="tabs">
+        <button
+          className={`tab ${tab === Tab.APIS ? 'tab-active' : ''}`}
+          type="button"
+          onClick={() => setTab(Tab.APIS)}
+        >
+          My APIs
+        </button>
+        <button
+          className={`tab ${tab === Tab.BOTS ? 'tab-active' : ''}`}
+          type="button"
+          onClick={() => setTab(Tab.BOTS)}
+        >
+          My Bots
+        </button>
+      </nav>
+
       <main className="app-main">
-        {!sellerId ? (
-          <EmptyState message="Enter a seller id to view revenue, usage, and the live tx feed." />
-        ) : error ? (
-          <ErrorBanner message={error} />
-        ) : loading && !data ? (
-          <DashboardSkeleton />
-        ) : data ? (
-          <>
-            <SummaryCards summary={data.summary} />
-            <div className="grid">
-              <TopEndpoints endpoints={data.endpoints} />
-              <WalletTable wallets={data.wallets} />
-            </div>
-            <LiveFeed events={events} status={status} />
-          </>
-        ) : null}
+        {tab === Tab.APIS ? (
+          <SellerTab token={session.token} onUnauthorized={logout} />
+        ) : (
+          <BotTab token={session.token} onUnauthorized={logout} />
+        )}
       </main>
     </div>
-  );
-}
-
-function DashboardSkeleton(): JSX.Element {
-  return (
-    <>
-      <div className="cards">
-        {Array.from({ length: 4 }, (_, i) => (
-          <div className="card metric" key={i}>
-            <CardSkeleton rows={2} />
-          </div>
-        ))}
-      </div>
-      <div className="grid">
-        <div className="card panel">
-          <CardSkeleton rows={5} />
-        </div>
-        <div className="card panel">
-          <CardSkeleton rows={5} />
-        </div>
-      </div>
-    </>
   );
 }

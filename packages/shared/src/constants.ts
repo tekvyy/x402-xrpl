@@ -32,3 +32,14 @@ export const XRPL_EXPLORER_TX_URL: Readonly<Record<XrplNetwork, string>> = Objec
 export function explorerTxUrl(network: XrplNetwork, txHash: string): string {
   return `${XRPL_EXPLORER_TX_URL[network]}${txHash}`;
 }
+
+/** Largest value an XRPL source tag / u32 field can hold. */
+export const MAX_UINT32 = 4_294_967_295;
+
+/** XRPL classic address: `r` + 24–34 base58 (Ripple alphabet) characters. */
+export const XRPL_CLASSIC_ADDRESS_PATTERN = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
+
+/** Whether `value` looks like a well-formed XRPL classic address. */
+export function isClassicAddress(value: string): boolean {
+  return XRPL_CLASSIC_ADDRESS_PATTERN.test(value);
+}

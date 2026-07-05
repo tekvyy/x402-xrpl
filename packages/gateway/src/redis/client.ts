@@ -18,8 +18,3 @@ function nonceKey(nonce: string): string {
 export async function cacheNonce(redis: Redis, nonce: string, ttlMs: number): Promise<void> {
   await redis.set(nonceKey(nonce), '1', 'PX', ttlMs);
 }
-
-/** Whether a nonce is still within its live TTL window. */
-export async function nonceIsLive(redis: Redis, nonce: string): Promise<boolean> {
-  return (await redis.exists(nonceKey(nonce))) === 1;
-}

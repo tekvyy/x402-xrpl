@@ -14,6 +14,27 @@ export interface SellerRow {
   price_amount: string;
   price_asset: Asset;
   payment_mode: PaymentMode;
+  /** XRPL address that registered (owns) this seller; null for legacy rows. */
+  owner_address: string | null;
+  created_at: Date;
+}
+
+export interface BotRow {
+  id: string;
+  owner_address: string;
+  label: string;
+  seller_id: string;
+  /** The bot's public XRPL paying address (never a seed). */
+  wallet_address: string;
+  asset: Asset;
+  payment_mode: PaymentMode;
+  resource: string;
+  source_tag: string;
+  /** Per-call spend ceiling in the asset's human unit; null = no cap. */
+  max_amount: string | null;
+  /** PayChan deposit (human unit) for prepaid-credits bots; null otherwise. */
+  deposit_amount: string | null;
+  metered_calls: number;
   created_at: Date;
 }
 

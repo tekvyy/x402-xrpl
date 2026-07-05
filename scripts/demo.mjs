@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(resolve(rootDir, 'packages/gateway/package.json'));
@@ -103,12 +103,14 @@ async function main() {
   const sourceTag = process.env.SOURCE_TAG ?? fileEnv.SOURCE_TAG ?? '1080108';
   const rlusdIssuer = process.env.RLUSD_ISSUER ?? fileEnv.RLUSD_ISSUER ?? '';
   const xrplEndpoint = process.env.XRPL_ENDPOINT ?? fileEnv.XRPL_ENDPOINT ?? TESTNET_ENDPOINT;
+  const authSecret = process.env.AUTH_SECRET ?? fileEnv.AUTH_SECRET ?? 'demo-auth-secret-change-me';
 
   const baseEnv = {
     XRPL_NETWORK: 'TESTNET',
     XRPL_ENDPOINT: xrplEndpoint,
     SOURCE_TAG: sourceTag,
     RLUSD_ISSUER: rlusdIssuer,
+    AUTH_SECRET: authSecret,
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
     DASHBOARD_ORIGIN: `http://localhost:${DASHBOARD_PORT}`,
@@ -154,10 +156,23 @@ async function main() {
   await waitForHttp(`http://localhost:${GATEWAY_PORT}/sellers/00000000-0000-0000-0000-000000000000`);
   await waitForHttp(`http://localhost:${DEMO_ORIGIN_PORT}/data`);
 
+  console.log('==> Signing in the seller (sign-in-with-XRPL)…');
+  const { signInWithGateway } = await import(
+    pathToFileURL(resolve(rootDir, 'packages/sdk-client/dist/index.js')).href
+  );
+  const session = await signInWithGateway({
+    gatewayUrl: `http://localhost:${GATEWAY_PORT}`,
+    seed: sellerWallet.seed,
+  });
+  console.log(`  authenticated ${session.address}`);
+
   console.log('==> Registering demo seller…');
   const sellerRes = await fetch(`http://localhost:${GATEWAY_PORT}/sellers`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${session.token}`,
+    },
     body: JSON.stringify({
       name: 'Demo Weather API',
       originUrl: `http://localhost:${DEMO_ORIGIN_PORT}`,

@@ -12,6 +12,8 @@ const EnvSchema = z.object({
   // Optional: falls back to the network default endpoint when unset.
   XRPL_ENDPOINT: z.string().url().optional(),
   GATEWAY_XRPL_SEED: z.string().min(1, 'GATEWAY_XRPL_SEED is required'),
+  // Secret used to sign stateless dashboard session (JWT-style HMAC) tokens.
+  AUTH_SECRET: z.string().min(16, 'AUTH_SECRET must be at least 16 characters'),
   SOURCE_TAG: z.coerce.number().int().nonnegative(),
   RLUSD_ISSUER: z.string().min(1, 'RLUSD_ISSUER is required'),
   DATABASE_URL: z.string().url(),
@@ -31,6 +33,8 @@ export interface AppEnv {
   xrplNetwork: XrplNetwork;
   xrplEndpoint: string;
   gatewayXrplSeed: string;
+  /** Secret for signing dashboard session tokens. */
+  authSecret: string;
   sourceTag: number;
   rlusdIssuer: string;
   databaseUrl: string;
@@ -59,6 +63,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     xrplNetwork: data.XRPL_NETWORK,
     xrplEndpoint: data.XRPL_ENDPOINT ?? XRPL_ENDPOINTS[data.XRPL_NETWORK],
     gatewayXrplSeed: data.GATEWAY_XRPL_SEED,
+    authSecret: data.AUTH_SECRET,
     sourceTag: data.SOURCE_TAG,
     rlusdIssuer: data.RLUSD_ISSUER,
     databaseUrl: data.DATABASE_URL,

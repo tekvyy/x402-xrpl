@@ -117,7 +117,12 @@ export async function x402fetch(
   url: string | URL,
   init: X402FetchInit,
 ): Promise<Response> {
-  const { x402, ...requestInit } = init;
+  const { x402, ...rest } = init;
+  // A one-shot ReadableStream body is exhausted by the initial request and
+  // cannot be replayed on the paid retry — buffer it up front so every attempt
+  // sends the same payload. String/Blob/ArrayBuffer/URLSearchParams bodies are
+  // already replayable and pass through untouched.
+  const requestInit = await bufferReplayableBody(rest);
 
   const initial = await fetch(url, requestInit);
   if (initial.status !== 402) return initial;
@@ -156,6 +161,18 @@ export async function x402fetch(
   const headers = new Headers(requestInit.headers);
   headers.set(X402Header.X_PAYMENT, encodeHeaderPayload(payload));
   return fetch(url, { ...requestInit, headers });
+}
+
+/**
+ * If `init.body` is a one-shot `ReadableStream`, read it fully into a buffer so
+ * the request can be sent again on the paid retry. All other body types are
+ * already replayable and returned unchanged.
+ */
+async function bufferReplayableBody(init: RequestInit): Promise<RequestInit> {
+  const { body } = init;
+  if (body == null || !(body instanceof ReadableStream)) return init;
+  const buffered = await new Response(body).arrayBuffer();
+  return { ...init, body: buffered };
 }
 
 /** Whether the challenge can be paid from `channel`'s remaining credits. */

@@ -18,8 +18,42 @@ Prerequisites: Postgres and Redis reachable via `DATABASE_URL` / `REDIS_URL`
    calls** (credits tick down, no per-call on-chain wait) → **one pay-per-call**
    request that settles on chain, printing the explorer URL.
 
-Servers stay up afterwards so the live dashboard can be watched (enter the
-printed seller id). Press `Ctrl-C` to tear everything down.
+The demo signs the seller in with sign-in-with-XRPL before registering (seller
+registration now requires an authenticated session).
+
+Servers stay up afterwards so the live dashboard can be watched. Press `Ctrl-C`
+to tear everything down.
+
+## Dashboard sign-in
+
+The dashboard (`:5173`) requires a session. Authentication is
+**sign-in-with-XRPL** (via [xrpl-connect](https://github.com/XRPL-Commons/xrpl-connect)):
+you sign a one-time challenge with your wallet — the seed never leaves it.
+
+**Primary — browser wallet (GemWallet / Crossmark / Xaman / WalletConnect):**
+click *Connect <wallet>* on the login screen. The dashboard requests a
+challenge, has the wallet sign a throwaway (never-submitted) `AccountSet` whose
+memo carries the nonce, and the gateway verifies the signed tx blob server-side
+(deterministic, wallet-agnostic). GemWallet and Crossmark work with zero config;
+Xaman needs `VITE_XAMAN_API_KEY` and WalletConnect needs
+`VITE_WALLETCONNECT_PROJECT_ID` (adapters load only when their key is set).
+
+**Fallback — headless / no extension:** under *Advanced: paste a session token*,
+run the CLI helper and paste the printed token:
+
+```bash
+# builds must exist (pnpm -r build); the demo does this for you
+pnpm login <YOUR_WALLET_SEED>
+```
+
+Once in, two tabs:
+
+- **My APIs** — register origin APIs and watch their live revenue, usage, and
+  settlement feed (scoped to your signed-in address).
+- **My Bots** — configure self-custody paying agents (which seller, spend caps,
+  deposit) and download a ready-to-run `.env` + run command. The bot's seed
+  stays with you; the gateway only stores the config and the bot's public
+  paying address (for spend monitoring).
 
 ## Mainnet vs testnet
 

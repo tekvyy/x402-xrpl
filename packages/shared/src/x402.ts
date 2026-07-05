@@ -83,14 +83,23 @@ export const PaymentResponseSchema = z.object({
 });
 export type PaymentResponse = z.infer<typeof PaymentResponseSchema>;
 
-/** Base64-encode a JSON-serializable value for an x402 header. */
+/**
+ * Base64-encode a JSON-serializable value for an x402 header. Uses `btoa` +
+ * `TextEncoder` (available in Node 16+ and browsers) so the shared package stays
+ * isomorphic — no Node `Buffer`, which would need a browser polyfill.
+ */
 export function encodeHeaderPayload(value: unknown): string {
-  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 /** Decode a base64 x402 header back into a parsed JSON value. */
 export function decodeHeaderPayload(header: string): unknown {
-  return JSON.parse(Buffer.from(header, 'base64').toString('utf8'));
+  const binary = atob(header);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
 
 /** Decode and validate an `X-PAYMENT` header into a typed `PaymentPayload`. */

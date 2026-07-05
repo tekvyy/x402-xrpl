@@ -6,6 +6,8 @@
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import { registerAuthRoutes } from './routes/auth.route.js';
+import { registerBotRoutes } from './routes/bots.route.js';
 import { registerSellerRoutes } from './routes/sellers.route.js';
 import { registerChannelRoutes } from './routes/channels.route.js';
 import { registerUsageRoutes } from './routes/usage.route.js';
@@ -20,6 +22,8 @@ export async function buildApp(deps: GatewayDeps): Promise<FastifyInstance> {
 
   app.get('/health', async () => ({ status: 'ok' }));
 
+  registerAuthRoutes(app, deps);
+  registerBotRoutes(app, deps);
   registerSellerRoutes(app, deps);
   registerChannelRoutes(app, deps);
   registerUsageRoutes(app, deps);

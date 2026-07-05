@@ -6,6 +6,7 @@
 import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode } from '@app/shared';
 import type { Queryable } from './pool.js';
 import type {
+  BotRow,
   ChallengeRow,
   ChannelRow,
   EscrowCreditRow,
@@ -21,12 +22,15 @@ export interface CreateSellerInput {
   priceAmount: string;
   priceAsset: Asset;
   paymentMode: PaymentMode;
+  /** Owning XRPL address (from the authenticated session). */
+  ownerAddress: string;
 }
 
 export async function createSeller(db: Queryable, input: CreateSellerInput): Promise<SellerRow> {
   const { rows } = await db.query<SellerRow>(
-    `INSERT INTO sellers (name, origin_url, pay_to_address, price_amount, price_asset, payment_mode)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO sellers
+       (name, origin_url, pay_to_address, price_amount, price_asset, payment_mode, owner_address)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
     [
       input.name,
@@ -35,6 +39,7 @@ export async function createSeller(db: Queryable, input: CreateSellerInput): Pro
       input.priceAmount,
       input.priceAsset,
       input.paymentMode,
+      input.ownerAddress,
     ],
   );
   return rows[0]!;
@@ -43,6 +48,18 @@ export async function createSeller(db: Queryable, input: CreateSellerInput): Pro
 export async function getSeller(db: Queryable, id: string): Promise<SellerRow | null> {
   const { rows } = await db.query<SellerRow>(`SELECT * FROM sellers WHERE id = $1`, [id]);
   return rows[0] ?? null;
+}
+
+/** All sellers owned by an address, newest first. */
+export async function listSellersByOwner(
+  db: Queryable,
+  ownerAddress: string,
+): Promise<SellerRow[]> {
+  const { rows } = await db.query<SellerRow>(
+    `SELECT * FROM sellers WHERE owner_address = $1 ORDER BY created_at DESC`,
+    [ownerAddress],
+  );
+  return rows;
 }
 
 export interface CreateChallengeInput {
@@ -355,6 +372,89 @@ export async function getUsageByWallet(db: Queryable, sellerId: string): Promise
     [sellerId],
   );
   return rows.map((r) => ({ walletAddress: r.wallet_address, calls: r.calls, spend: r.spend }));
+}
+
+export interface CreateBotInput {
+  ownerAddress: string;
+  label: string;
+  sellerId: string;
+  walletAddress: string;
+  asset: Asset;
+  paymentMode: PaymentMode;
+  resource: string;
+  sourceTag: number;
+  maxAmount: string | null;
+  depositAmount: string | null;
+  meteredCalls: number;
+}
+
+export async function createBot(db: Queryable, input: CreateBotInput): Promise<BotRow> {
+  const { rows } = await db.query<BotRow>(
+    `INSERT INTO bots
+       (owner_address, label, seller_id, wallet_address, asset, payment_mode,
+        resource, source_tag, max_amount, deposit_amount, metered_calls)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     RETURNING *`,
+    [
+      input.ownerAddress,
+      input.label,
+      input.sellerId,
+      input.walletAddress,
+      input.asset,
+      input.paymentMode,
+      input.resource,
+      input.sourceTag,
+      input.maxAmount,
+      input.depositAmount,
+      input.meteredCalls,
+    ],
+  );
+  return rows[0]!;
+}
+
+/** All bots owned by an address, newest first. */
+export async function listBotsByOwner(db: Queryable, ownerAddress: string): Promise<BotRow[]> {
+  const { rows } = await db.query<BotRow>(
+    `SELECT * FROM bots WHERE owner_address = $1 ORDER BY created_at DESC`,
+    [ownerAddress],
+  );
+  return rows;
+}
+
+export async function getBot(db: Queryable, id: string): Promise<BotRow | null> {
+  const { rows } = await db.query<BotRow>(`SELECT * FROM bots WHERE id = $1`, [id]);
+  return rows[0] ?? null;
+}
+
+/** Delete a bot, but only if it belongs to `ownerAddress`. Returns true when removed. */
+export async function deleteBot(db: Queryable, id: string, ownerAddress: string): Promise<boolean> {
+  const { rowCount } = await db.query(`DELETE FROM bots WHERE id = $1 AND owner_address = $2`, [
+    id,
+    ownerAddress,
+  ]);
+  return (rowCount ?? 0) > 0;
+}
+
+/** Call count and total spend for a single wallet against one seller. */
+export interface WalletSpend {
+  calls: number;
+  /** Summed spend (human unit) across all assets, as a decimal string. */
+  spend: string;
+}
+
+export async function getWalletSpend(
+  db: Queryable,
+  sellerId: string,
+  walletAddress: string,
+): Promise<WalletSpend> {
+  const { rows } = await db.query<{ calls: number; spend: string }>(
+    `SELECT COUNT(*)::int AS calls, COALESCE(SUM(amount), 0)::text AS spend
+     FROM usage_events
+     WHERE seller_id = $1 AND wallet_address = $2`,
+    [sellerId, walletAddress],
+  );
+  const row = rows[0]!;
+  return { calls: row.calls, spend: row.spend };
 }
 
 export async function getEscrowCreditByTxHash(
