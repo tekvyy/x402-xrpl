@@ -15,6 +15,7 @@ import {
 import type { EscrowCreditRow, UsageEventRow } from '../db/types.js';
 import { PaymentMode } from '@app/shared';
 import { publishUsageEvent } from './usage.service.js';
+import { unwrapTxResult } from './verify.service.js';
 import { XrplService } from './xrpl.service.js';
 import { decimalGte, isDecimalString } from '../util/decimal.js';
 import type { GatewayDeps } from '../deps.js';
@@ -85,7 +86,7 @@ export async function depositEscrow(
     return { ok: false, reason: 'deposit transaction not found on the ledger' };
   }
 
-  const tx = response.result as unknown as RawTx;
+  const tx = unwrapTxResult(response.result) as RawTx;
   if (tx.validated !== true) return { ok: false, reason: 'deposit is not yet validated' };
   if (tx.TransactionType !== 'Payment') return { ok: false, reason: 'deposit is not a Payment' };
   if (tx.Destination !== deps.xrpl.address()) {

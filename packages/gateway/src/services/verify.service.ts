@@ -44,7 +44,7 @@ export type VerifyResult = VerifyOk | VerifyErr;
 const fail = (reason: string): VerifyErr => ({ ok: false, reason });
 
 /** Minimal projection of the fields we read off a `tx` response. */
-interface RawTx {
+export interface RawTx {
   validated?: boolean;
   TransactionType?: string;
   Account?: string;
@@ -55,6 +55,22 @@ interface RawTx {
   Memos?: Array<{ Memo?: { MemoData?: string } }>;
   meta?: unknown;
   meta_data?: unknown;
+}
+
+/**
+ * Flatten a `tx` response envelope. rippled API v2 (the default for xrpl.js
+ * ≥ 4) nests the transaction fields under `tx_json` and keeps `validated`,
+ * `hash`, and `meta` at the top level; API v1 returns everything flat.
+ */
+export function unwrapTxResult(result: unknown): RawTx {
+  const envelope = result as RawTx & { tx_json?: RawTx };
+  if (!envelope.tx_json) return envelope;
+  return {
+    ...envelope.tx_json,
+    validated: envelope.validated,
+    hash: envelope.tx_json.hash ?? envelope.hash,
+    meta: envelope.meta ?? envelope.tx_json.meta,
+  };
 }
 
 interface IssuedAmount {
@@ -117,7 +133,7 @@ export async function verifyPayPerCall(
     return fail('transaction could not be found on the ledger');
   }
 
-  const tx = response.result as unknown as RawTx;
+  const tx = unwrapTxResult(response.result);
   if (tx.validated !== true) return fail('transaction is not yet validated');
   if (tx.TransactionType !== 'Payment') return fail('referenced transaction is not a Payment');
   if (tx.Destination !== ctx.payTo) return fail('payment destination does not match seller');
