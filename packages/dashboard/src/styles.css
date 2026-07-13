@@ -1,20 +1,28 @@
-/* XRPL x402 seller dashboard — polished dark theme. */
+/* XRPL x402 seller dashboard — "onyx" amber terminal theme.
+   Palette and chrome match the Onyx bounty-board UI: Share Tech Mono
+   everywhere, #ffad61 amber on #090b0a black, squared 1px amber outlines,
+   dashed separators, dotted backdrop, amber scrollbars. */
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 :root {
-  --bg: #0b0e14;
-  --bg-elev: #141926;
-  --bg-elev-2: #1b2233;
-  --border: #232b3d;
-  --text: #e6e9f0;
-  --text-dim: #8b93a7;
-  --text-faint: #5b6479;
-  --accent: #4f8cff;
-  --accent-soft: rgba(79, 140, 255, 0.14);
-  --green: #34d399;
-  --amber: #fbbf24;
-  --red: #f87171;
-  --radius: 14px;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
+  --bg: #090b0a;
+  --bg-elev: #0b0e0c;
+  --bg-elev-2: #171208;
+  --border: rgba(255, 173, 97, 0.55);
+  --border-dim: rgba(255, 173, 97, 0.25);
+  --text: #f4e9dc;
+  --text-dim: rgba(255, 173, 97, 0.55);
+  --text-faint: #6b4c2d;
+  --accent: #ffad61;
+  --accent-bright: #ff932e;
+  --accent-soft: rgba(255, 173, 97, 0.12);
+  --green: #6fdc8c;
+  --amber: #ff932e;
+  --red: #ff6b6b;
+  --radius: 0;
+  --shadow: none;
+  --font-mono: 'Share Tech Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   color-scheme: dark;
 }
 
@@ -30,17 +38,40 @@ body,
 
 body {
   margin: 0;
-  background: radial-gradient(1200px 600px at 20% -10%, #131a2b 0%, var(--bg) 55%);
+  background-color: var(--bg);
+  background-image: radial-gradient(rgba(255, 173, 97, 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
   color: var(--text);
-  font-family:
-    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Amber terminal scrollbars, everywhere. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #3a2b1b;
+  border-right: 3px solid var(--bg);
+  border-left: 3px solid var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--accent);
+  border-radius: 4px;
+}
+
 .mono {
-  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 /* ---- Layout ---- */
@@ -70,19 +101,20 @@ body {
   place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--accent), #7b5cff);
-  color: #fff;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  box-shadow: var(--shadow);
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+  font-size: 13px;
 }
 
 .brand-text h1 {
   margin: 0;
   font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.3px;
+  font-weight: 400;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
 }
 
 .brand-text p {
@@ -111,10 +143,8 @@ body {
 
 /* ---- Cards ---- */
 .card {
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--bg);
+  border: 1px solid var(--accent);
 }
 
 .cards {
@@ -134,19 +164,18 @@ body {
   color: var(--text-dim);
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 1px;
 }
 
 .metric-value {
   font-size: 28px;
-  font-weight: 680;
-  letter-spacing: -0.6px;
+  color: var(--accent);
+  letter-spacing: 1.5px;
 }
 
 .metric-unit {
   font-size: 15px;
   color: var(--text-dim);
-  font-weight: 550;
 }
 
 .metric-sub {
@@ -167,9 +196,11 @@ body {
 
 .panel-title {
   margin: 0 0 14px;
-  font-size: 14px;
-  font-weight: 620;
-  letter-spacing: -0.2px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
 }
 
 .panel-head .panel-title {
@@ -202,16 +233,14 @@ body {
 }
 
 .bar-track {
-  height: 8px;
-  background: var(--bg-elev-2);
-  border-radius: 999px;
+  height: 12px;
+  background: var(--accent-soft);
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), #7b5cff);
+  background: var(--accent);
   min-width: 4px;
   transition: width 0.4s ease;
 }
@@ -219,7 +248,7 @@ body {
 .bar-value {
   font-variant-numeric: tabular-nums;
   font-size: 13px;
-  color: var(--text);
+  color: var(--accent);
   white-space: nowrap;
 }
 
@@ -237,15 +266,17 @@ body {
 .table th {
   text-align: left;
   color: var(--text-dim);
-  font-weight: 550;
-  font-size: 12px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-size: 11px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
 }
 
 .table td {
   padding: 10px;
-  border-bottom: 1px solid rgba(35, 43, 61, 0.5);
+  border-bottom: 1px dashed var(--border-dim);
 }
 
 .table tr:last-child td {
@@ -263,7 +294,7 @@ body {
 }
 
 .sortable:hover {
-  color: var(--text);
+  color: var(--accent);
 }
 
 /* ---- Live feed ---- */
@@ -281,7 +312,7 @@ body {
   align-items: center;
   gap: 14px;
   padding: 10px 4px;
-  border-bottom: 1px solid rgba(35, 43, 61, 0.5);
+  border-bottom: 1px dashed var(--border-dim);
   animation: feed-in 0.35s ease;
 }
 
@@ -328,7 +359,6 @@ body {
 
 .feed-amount {
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
   color: var(--green);
   white-space: nowrap;
 }
@@ -342,6 +372,7 @@ body {
 
 .feed-tx:hover {
   text-decoration: underline;
+  color: var(--accent-bright);
 }
 
 .feed-tx-offledger {
@@ -352,10 +383,11 @@ body {
 /* ---- Chips ---- */
 .chip {
   font-size: 11px;
-  font-weight: 550;
-  padding: 3px 9px;
-  border-radius: 999px;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
   white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .chip-pay_per_call {
@@ -364,7 +396,7 @@ body {
 }
 
 .chip-prepaid_credits {
-  background: rgba(52, 211, 153, 0.14);
+  background: rgba(111, 220, 140, 0.1);
   color: var(--green);
 }
 
@@ -375,19 +407,20 @@ body {
   gap: 6px;
   font-size: 12px;
   color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
 }
 
 .feed-status .dot,
 .seller-active .dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   background: var(--text-faint);
 }
 
 .feed-status-live .dot {
   background: var(--green);
-  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+  box-shadow: 0 0 6px rgba(111, 220, 140, 0.6);
   animation: pulse 1.6s infinite;
 }
 
@@ -422,11 +455,10 @@ body {
   width: 280px;
   max-width: 60vw;
   padding: 9px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg-elev);
+  border: 1px solid var(--border-dim);
+  background: var(--bg);
   color: var(--text);
-  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
   outline: none;
   transition: border-color 0.15s ease;
@@ -436,24 +468,30 @@ body {
   border-color: var(--accent);
 }
 
+/* Onyx buttons: default is a transparent amber-outlined terminal button;
+   primary is the solid amber CTA with dark text. */
 .btn {
-  padding: 9px 16px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 550;
+  padding: 8px 16px;
+  border: none;
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--font-mono);
   font-size: 13px;
   cursor: pointer;
-  transition: filter 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .btn:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: var(--accent-soft);
+  color: var(--accent-bright);
 }
 
 .btn:disabled {
   opacity: 0.5;
+  color: var(--text-faint);
+  outline-color: var(--text-faint);
   cursor: not-allowed;
 }
 
@@ -479,16 +517,14 @@ body {
   padding: 40px 20px;
   text-align: center;
   color: var(--text-dim);
-  background: var(--bg-elev);
+  background: var(--bg);
   border: 1px dashed var(--border);
-  border-radius: var(--radius);
 }
 
 .error-banner {
   padding: 16px 18px;
-  border-radius: var(--radius);
-  background: rgba(248, 113, 113, 0.1);
-  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(255, 107, 107, 0.08);
+  border: 1px solid rgba(255, 107, 107, 0.4);
   color: var(--red);
 }
 
@@ -496,8 +532,8 @@ body {
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border: 2px solid rgba(255, 173, 97, 0.3);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -516,8 +552,12 @@ body {
 
 .skeleton-line {
   height: 12px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, var(--bg-elev-2) 25%, #232b3d 37%, var(--bg-elev-2) 63%);
+  background: linear-gradient(
+    90deg,
+    var(--bg-elev-2) 25%,
+    rgba(255, 173, 97, 0.16) 37%,
+    var(--bg-elev-2) 63%
+  );
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
 }
@@ -538,18 +578,26 @@ body {
 
 /* ---- Buttons (variants) ---- */
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), #7b5cff);
+  background: var(--accent);
+  color: #1a1a1a;
+  outline: none;
+  border-radius: 5px;
+  font-weight: 700;
 }
 
-.btn:not(.btn-primary):not(.btn-danger) {
-  background: var(--bg-elev-2);
-  border-color: var(--border);
-  color: var(--text);
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-bright);
+  color: #1a1a1a;
 }
 
 .btn-danger {
-  background: rgba(248, 113, 113, 0.14);
-  border-color: rgba(248, 113, 113, 0.3);
+  outline-color: var(--red);
+  background: rgba(255, 107, 107, 0.08);
+  color: var(--red);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.18);
   color: var(--red);
 }
 
@@ -564,10 +612,8 @@ body {
 .login-card {
   width: 100%;
   max-width: 460px;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--bg);
+  border: 1px solid var(--accent);
   padding: 30px 30px 26px;
 }
 
@@ -593,11 +639,10 @@ body {
   display: block;
   margin: 8px 0;
   padding: 10px 12px;
-  border-radius: 10px;
   background: var(--bg);
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+  border: 1px dashed var(--border);
+  color: var(--accent);
+  font-family: var(--font-mono);
   font-size: 12.5px;
   word-break: break-all;
 }
@@ -612,11 +657,10 @@ body {
   width: 100%;
   resize: vertical;
   padding: 11px 13px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-dim);
   background: var(--bg);
   color: var(--text);
-  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   outline: none;
   transition: border-color 0.15s ease;
@@ -642,15 +686,11 @@ body {
 .btn-wallet {
   width: 100%;
   padding: 12px 16px;
-  background: var(--bg-elev-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-size: 13.5px;
+  text-align: left;
 }
 
 .btn-wallet:hover:not(:disabled) {
-  border-color: var(--accent);
-  filter: none;
+  background: var(--accent-soft);
 }
 
 .login-hint {
@@ -661,7 +701,7 @@ body {
 }
 
 .login-hint code {
-  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--text-dim);
 }
 
@@ -672,12 +712,14 @@ body {
   border: none;
   padding: 0;
   color: var(--accent);
+  font-family: var(--font-mono);
   font-size: 12.5px;
   cursor: pointer;
 }
 
 .link-button:hover {
   text-decoration: underline;
+  color: var(--accent-bright);
 }
 
 /* ---- Session / tabs ---- */
@@ -692,44 +734,46 @@ body {
   align-items: center;
   gap: 7px;
   font-size: 12.5px;
-  color: var(--text-dim);
-  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+  color: var(--accent);
+  font-family: var(--font-mono);
 }
 
 .session-addr .dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   background: var(--green);
-  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+  box-shadow: 0 0 6px rgba(111, 220, 140, 0.6);
 }
 
+/* Onyx tab strip: amber-outlined transparent buttons, active glows amber. */
 .tabs {
   display: flex;
-  gap: 4px;
+  gap: 0;
   margin-bottom: 22px;
-  border-bottom: 1px solid var(--border);
 }
 
 .tab {
-  padding: 10px 18px;
-  background: none;
+  padding: 8px 18px;
+  background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-dim);
-  font-size: 13.5px;
-  font-weight: 550;
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: all 0.3s ease;
 }
 
 .tab:hover {
-  color: var(--text);
+  color: var(--accent-bright);
 }
 
 .tab-active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .tab-content {
@@ -742,8 +786,10 @@ body {
 .panel h2 {
   margin: 0 0 4px;
   font-size: 15px;
-  font-weight: 640;
-  letter-spacing: -0.2px;
+  font-weight: 400;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
 }
 
 .panel-sub {
@@ -765,8 +811,10 @@ body {
 }
 
 .field > span {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
 }
 
 .field-narrow {
@@ -776,10 +824,10 @@ body {
 .field input,
 .field select {
   padding: 9px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-dim);
   background: var(--bg);
   color: var(--text);
+  font-family: var(--font-mono);
   font-size: 13px;
   outline: none;
   transition: border-color 0.15s ease;
@@ -796,6 +844,71 @@ body {
   justify-content: flex-end;
 }
 
+/* Payment-setup picker: three radio cards spanning the form width. */
+.setup-picker {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.setup-picker legend {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.setup-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-dim);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.setup-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.setup-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.setup-option:focus-within {
+  border-color: var(--accent);
+}
+
+.setup-title {
+  font-size: 13px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.setup-detail {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .setup-picker {
+    grid-template-columns: 1fr;
+  }
+}
+
 .form-success {
   margin: 14px 0 0;
   color: var(--green);
@@ -805,9 +918,9 @@ body {
 
 .form-success code,
 .panel-sub code {
-  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text);
+  color: var(--accent);
 }
 
 @media (max-width: 640px) {
@@ -840,7 +953,10 @@ body {
 .bot-card-head h3 {
   margin: 0;
   font-size: 15px;
-  font-weight: 620;
+  font-weight: 400;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
 }
 
 .bot-meta {
@@ -858,9 +974,9 @@ body {
 
 .bot-meta dt {
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
 }
 
 .bot-meta dd {
@@ -877,6 +993,6 @@ body {
 }
 
 .bot-actions .btn {
-  padding: 7px 12px;
+  padding: 6px 12px;
   font-size: 12.5px;
 }
