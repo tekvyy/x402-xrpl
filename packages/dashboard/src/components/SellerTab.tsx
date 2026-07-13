@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { fetchMySellers, UnauthorizedError, type SellerInfo } from '../api.js';
+import { paymentSetupLabel } from '../format.js';
 import { useUsage } from '../hooks/useUsage.js';
 import { useLiveFeed } from '../hooks/useLiveFeed.js';
 import { RegisterApiForm } from './RegisterApiForm.js';
@@ -60,7 +61,8 @@ export function SellerTab({ token, onUnauthorized }: SellerTabProps): JSX.Elemen
             <select value={selected ?? ''} onChange={(e) => setSelected(e.target.value)}>
               {sellers.map((seller) => (
                 <option key={seller.sellerId} value={seller.sellerId}>
-                  {seller.name} · {seller.priceAmount} {seller.priceAsset}
+                  {seller.name} · {seller.priceAmount} {seller.priceAsset} ·{' '}
+                  {paymentSetupLabel(seller.paymentMode)}
                 </option>
               ))}
             </select>

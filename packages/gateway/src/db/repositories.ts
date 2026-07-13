@@ -3,7 +3,7 @@
  * so callers can run inside a transaction by passing a checked-out client.
  * SQL is parameterized; no string interpolation of user input.
  */
-import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode } from '@app/shared';
+import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode, PaymentSetup } from '@app/shared';
 import type { Queryable } from './pool.js';
 import type {
   BotRow,
@@ -21,7 +21,7 @@ export interface CreateSellerInput {
   payToAddress: string;
   priceAmount: string;
   priceAsset: Asset;
-  paymentMode: PaymentMode;
+  paymentMode: PaymentSetup;
   /** Owning XRPL address (from the authenticated session). */
   ownerAddress: string;
 }

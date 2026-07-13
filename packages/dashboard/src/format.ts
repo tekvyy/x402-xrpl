@@ -2,11 +2,23 @@
  * Presentation helpers shared across dashboard views. Pure, display-only —
  * never mutate or reinterpret the underlying decimal-string amounts.
  */
-import { Asset, PaymentMode } from '@app/shared';
+import { Asset, PaymentMode, PaymentSetup } from '@app/shared';
 
 /** Human label for a payment mode. */
 export function paymentModeLabel(mode: PaymentMode): string {
   return mode === PaymentMode.PREPAID_CREDITS ? 'Credits' : 'Pay-per-call';
+}
+
+/** Human label for a seller's payment setup (which modes it accepts). */
+export function paymentSetupLabel(setup: PaymentSetup): string {
+  switch (setup) {
+    case PaymentSetup.PAY_PER_CALL:
+      return 'Pay-per-call';
+    case PaymentSetup.PREPAID_CREDITS:
+      return 'Prepaid credits';
+    case PaymentSetup.BOTH:
+      return 'Pay-per-call + credits';
+  }
 }
 
 /** Trim a decimal string of trailing zeros while keeping at least one digit. */

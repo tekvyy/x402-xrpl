@@ -74,18 +74,27 @@ interface ChallengeBody {
   accepts?: unknown;
 }
 
-/** Pick a payable requirement from the 402 `accepts[]`, honouring a preference. */
-function selectRequirement(body: ChallengeBody, prefer?: Asset): PaymentRequirements {
+/** Parse and validate every entry of the 402 `accepts[]`. */
+function parseRequirements(body: ChallengeBody): PaymentRequirements[] {
   const { accepts } = body;
   if (!Array.isArray(accepts) || accepts.length === 0) {
     throw new Error('402 response carried no payment requirements');
   }
-  const requirements = accepts.map((entry) => PaymentRequirementsSchema.parse(entry));
+  return accepts.map((entry) => PaymentRequirementsSchema.parse(entry));
+}
+
+/** Pick the requirement for `mode`, honouring an asset preference. */
+function pickByMode(
+  requirements: PaymentRequirements[],
+  mode: PaymentMode,
+  prefer?: Asset,
+): PaymentRequirements | undefined {
+  const candidates = requirements.filter((requirement) => requirement.mode === mode);
   if (prefer) {
-    const match = requirements.find((requirement) => requirement.asset === prefer);
+    const match = candidates.find((requirement) => requirement.asset === prefer);
     if (match) return match;
   }
-  return requirements[0]!;
+  return candidates[0];
 }
 
 /** The challenge price expressed in human units, for the max-amount guard. */
@@ -128,15 +137,27 @@ export async function x402fetch(
   if (initial.status !== 402) return initial;
 
   const body = (await initial.json()) as ChallengeBody;
-  const requirements = selectRequirement(body, x402.preferAsset);
-  guardMaxAmount(requirements, x402.maxAmount);
+  const offered = parseRequirements(body);
 
-  // Fast path: pay off-ledger from an open channel when credits allow. If the
-  // gateway rejects the claim (still 402), fall through to pay-per-call.
-  if (canUseCredits(requirements, x402.channel)) {
-    const response = await payViaCredits(url, requestInit, x402, requirements, x402.channel!);
+  // Fast path: pay off-ledger from an open channel when the seller's setup
+  // advertises prepaid credits and remaining credits allow. If the gateway
+  // rejects the claim (still 402), fall through to pay-per-call.
+  const creditsRequirements = pickByMode(offered, PaymentMode.PREPAID_CREDITS);
+  if (creditsRequirements && canUseCredits(creditsRequirements, x402.channel)) {
+    guardMaxAmount(creditsRequirements, x402.maxAmount);
+    const response = await payViaCredits(url, requestInit, x402, creditsRequirements, x402.channel!);
     if (response.status !== 402) return response;
   }
+
+  const requirements = pickByMode(offered, PaymentMode.PAY_PER_CALL, x402.preferAsset);
+  if (!requirements) {
+    // Never pay on chain against a credits-only seller — the gateway would
+    // reject the mode after the funds had already moved.
+    throw new Error(
+      'seller accepts only prepaid credits — open and register a payment channel first',
+    );
+  }
+  guardMaxAmount(requirements, x402.maxAmount);
 
   if (requirements.asset === Asset.RLUSD && x402.manageTrustline !== false) {
     if (!requirements.issuer) throw new Error('RLUSD challenge is missing the issuer address');

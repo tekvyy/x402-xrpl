@@ -3,7 +3,7 @@
  * `pg` (to preserve precision) and we keep them as strings end-to-end; enum
  * columns are typed with the shared enums so the DB and wire stay in lockstep.
  */
-import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode } from '@app/shared';
+import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode, PaymentSetup } from '@app/shared';
 
 export interface SellerRow {
   id: string;
@@ -13,7 +13,8 @@ export interface SellerRow {
   /** Price in the asset's human unit (e.g. "0.01" RLUSD, "0.1" XRP). */
   price_amount: string;
   price_asset: Asset;
-  payment_mode: PaymentMode;
+  /** Which payment modes this seller accepts. */
+  payment_mode: PaymentSetup;
   /** XRPL address that registered (owns) this seller; null for legacy rows. */
   owner_address: string | null;
   created_at: Date;

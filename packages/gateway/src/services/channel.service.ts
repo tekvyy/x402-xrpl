@@ -13,6 +13,7 @@ import {
   PaymentMode,
   SettleResult,
   explorerTxUrl,
+  setupAllowsMode,
 } from '@app/shared';
 import type { AppEnv } from '@app/shared';
 import {
@@ -58,6 +59,9 @@ export async function registerChannel(
 
   const seller = await getSeller(deps.pool, input.sellerId);
   if (!seller) return { ok: false, reason: 'seller not found' };
+  if (!setupAllowsMode(seller.payment_mode, PaymentMode.PREPAID_CREDITS)) {
+    return { ok: false, reason: 'seller does not accept prepaid credits (pay-per-call only)' };
+  }
   if (seller.price_asset !== Asset.XRP) {
     return { ok: false, reason: 'PayChan credits require an XRP-priced seller' };
   }

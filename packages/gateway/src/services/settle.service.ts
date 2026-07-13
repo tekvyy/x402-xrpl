@@ -13,6 +13,7 @@ import {
   PaymentMode,
   SettleResult,
   explorerTxUrl,
+  setupAllowsMode,
 } from '@app/shared';
 import type { AppEnv, PaymentPayload, PrepaidCreditsPayload } from '@app/shared';
 import {
@@ -74,7 +75,7 @@ interface LoadedChallenge {
  */
 async function loadChallenge(
   deps: SettleDeps,
-  payload: Pick<PaymentPayload, 'nonce'>,
+  payload: Pick<PaymentPayload, 'nonce' | 'mode'>,
   sellerId: string,
 ): Promise<LoadedChallenge | SettleOutcome> {
   const challenge = await getChallengeByNonce(deps.pool, payload.nonce);
@@ -83,6 +84,9 @@ async function loadChallenge(
 
   const seller = await getSeller(deps.pool, sellerId);
   if (!seller) return reject('seller not found');
+  if (!setupAllowsMode(seller.payment_mode, payload.mode)) {
+    return reject(`seller does not accept ${payload.mode} payments`);
+  }
 
   if (challenge.expires_at.getTime() <= Date.now()) {
     await transitionChallengeStatus(deps.pool, challenge.id, ChallengeStatus.EXPIRED, [

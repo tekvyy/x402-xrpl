@@ -7,7 +7,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { Asset, MAX_UINT32, PaymentMode, isClassicAddress } from '@app/shared';
+import { Asset, MAX_UINT32, PaymentMode, isClassicAddress, setupAllowsMode } from '@app/shared';
 import {
   createBot,
   deleteBot,
@@ -20,7 +20,6 @@ import type { BotRow, SellerRow } from '../db/types.js';
 import { isDecimalString } from '../util/decimal.js';
 import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
-import { sellerGatewayUrl } from '../deps.js';
 
 const decimalAmount = z
   .string()
@@ -106,6 +105,11 @@ export function registerBotRoutes(app: FastifyInstance, deps: GatewayDeps): void
     }
     const seller = await getSeller(deps.pool, parsed.data.sellerId);
     if (!seller) return reply.code(400).send({ error: 'seller not found' });
+    if (!setupAllowsMode(seller.payment_mode, parsed.data.paymentMode)) {
+      return reply
+        .code(400)
+        .send({ error: `seller does not accept ${parsed.data.paymentMode} payments` });
+    }
 
     const bot = await createBot(deps.pool, {
       ownerAddress: request.ownerAddress!,
@@ -134,9 +138,10 @@ export function registerBotRoutes(app: FastifyInstance, deps: GatewayDeps): void
       return reply.code(404).send({ error: 'bot not found' });
     }
     const spend = await getWalletSpend(deps.pool, bot.seller_id, bot.wallet_address);
+    const seller = await getSeller(deps.pool, bot.seller_id);
     return reply.send({
       ...toBotResponse(bot),
-      gatewayUrl: sellerGatewayUrl(deps, bot.seller_id),
+      serviceUrl: seller?.origin_url ?? null,
       usage: spend,
     });
   });

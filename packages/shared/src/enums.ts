@@ -12,18 +12,42 @@ export enum PaymentMode {
   PREPAID_CREDITS = 'PREPAID_CREDITS',
 }
 
+/**
+ * Which payment modes a seller accepts. Distinct from {@link PaymentMode}:
+ * every individual payment settles in exactly one mode, but a seller's setup
+ * may allow either. Credits setups require XRP pricing (PayChan is XRP-native).
+ */
+export enum PaymentSetup {
+  /** Traditional: one on-chain Payment per call (XRP or RLUSD). */
+  PAY_PER_CALL = 'PAY_PER_CALL',
+  /** Prepaid credits only: off-ledger PayChan claims (XRP). */
+  PREPAID_CREDITS = 'PREPAID_CREDITS',
+  /** Accept both pay-per-call and prepaid credits. */
+  BOTH = 'BOTH',
+}
+
+/** Whether a seller with `setup` accepts a payment in `mode`. */
+export function setupAllowsMode(setup: PaymentSetup, mode: PaymentMode): boolean {
+  if (setup === PaymentSetup.BOTH) return true;
+  return (setup as string) === (mode as string);
+}
+
+/** The payment modes a seller with `setup` accepts, credits first (fast path). */
+export function setupModes(setup: PaymentSetup): PaymentMode[] {
+  switch (setup) {
+    case PaymentSetup.PAY_PER_CALL:
+      return [PaymentMode.PAY_PER_CALL];
+    case PaymentSetup.PREPAID_CREDITS:
+      return [PaymentMode.PREPAID_CREDITS];
+    case PaymentSetup.BOTH:
+      return [PaymentMode.PREPAID_CREDITS, PaymentMode.PAY_PER_CALL];
+  }
+}
+
 /** Settlement asset. */
 export enum Asset {
   RLUSD = 'RLUSD',
   XRP = 'XRP',
-}
-
-/** How a seller wires the gateway into their API. */
-export enum IntegrationMode {
-  /** Gateway proxies the origin API; zero seller code change. */
-  PROXY = 'PROXY',
-  /** Seller prices their own routes via SDK middleware. */
-  MIDDLEWARE = 'MIDDLEWARE',
 }
 
 /** Lifecycle of a single-use 402 challenge. */

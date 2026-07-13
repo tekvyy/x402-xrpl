@@ -2,7 +2,7 @@
  * Typed client for the gateway usage endpoints (US-005). Response shapes mirror
  * the gateway repositories exactly so the dashboard and backend stay in lockstep.
  */
-import type { Asset, PaymentMode } from '@app/shared';
+import type { Asset, PaymentMode, PaymentSetup } from '@app/shared';
 import { GATEWAY_URL } from './config.js';
 
 /** Revenue rolled up per settlement asset. */
@@ -44,8 +44,8 @@ export interface SellerInfo {
   payToAddress: string;
   priceAmount: string;
   priceAsset: Asset;
-  paymentMode: PaymentMode;
-  gatewayUrl: string;
+  /** Which payment modes this seller accepts. */
+  paymentMode: PaymentSetup;
 }
 
 /** Live-feed event pushed over `GET /usage/stream` (SSE). */
@@ -196,13 +196,13 @@ export interface CreateSellerInput {
   payToAddress: string;
   priceAmount: string;
   priceAsset: Asset;
-  paymentMode: PaymentMode;
+  paymentMode: PaymentSetup;
 }
 
 export function createApi(
   token: string,
   input: CreateSellerInput,
-): Promise<{ sellerId: string; gatewayUrl: string }> {
+): Promise<{ sellerId: string }> {
   return authed('/sellers', token, { method: 'POST', body: input });
 }
 
@@ -229,7 +229,8 @@ export interface Bot {
 
 /** Bot detail with on-chain spend attributed to its wallet. */
 export interface BotWithUsage extends Bot {
-  gatewayUrl: string;
+  /** The seller's API base URL the bot buys from. */
+  serviceUrl: string | null;
   usage: { calls: number; spend: string };
 }
 

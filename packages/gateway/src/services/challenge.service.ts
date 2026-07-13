@@ -9,8 +9,8 @@ import { xrpToDrops } from 'xrpl';
 import {
   Asset,
   CHALLENGE_TTL_MS,
-  PaymentMode,
   PaymentRequirementsSchema,
+  setupModes,
 } from '@app/shared';
 import type { PaymentRequirements } from '@app/shared';
 import { createChallenge } from '../db/repositories.js';
@@ -19,14 +19,16 @@ import { cacheNonce } from '../redis/client.js';
 import type { GatewayDeps } from '../deps.js';
 
 /**
- * Issue a fresh challenge for `resource` priced by `seller`. Persists the
- * challenge and returns validated `PaymentRequirements` for the 402 body.
+ * Issue a fresh challenge for `resource` priced by `seller`. Persists one
+ * single-use challenge and returns a validated `PaymentRequirements` entry
+ * per payment mode the seller's setup accepts — the 402 `accepts[]` array.
+ * All entries share the nonce; the payer settles it in exactly one mode.
  */
 export async function issueChallenge(
   deps: GatewayDeps,
   seller: SellerRow,
   resource: string,
-): Promise<PaymentRequirements> {
+): Promise<PaymentRequirements[]> {
   const nonce = randomUUID();
   const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
 
@@ -43,17 +45,16 @@ export async function issueChallenge(
   const wireAmount =
     seller.price_asset === Asset.XRP ? xrpToDrops(seller.price_amount) : seller.price_amount;
 
-  const requirements: PaymentRequirements = {
-    // US-002 issues pay-per-call requirements; PayChan credits arrive in US-004.
-    mode: PaymentMode.PAY_PER_CALL,
-    asset: seller.price_asset,
-    amount: wireAmount,
-    payTo: seller.pay_to_address,
-    nonce,
-    resource,
-    expiresAt: expiresAt.getTime(),
-    ...(seller.price_asset === Asset.RLUSD ? { issuer: deps.env.rlusdIssuer } : {}),
-  };
-
-  return PaymentRequirementsSchema.parse(requirements);
+  return setupModes(seller.payment_mode).map((mode) =>
+    PaymentRequirementsSchema.parse({
+      mode,
+      asset: seller.price_asset,
+      amount: wireAmount,
+      payTo: seller.pay_to_address,
+      nonce,
+      resource,
+      expiresAt: expiresAt.getTime(),
+      ...(seller.price_asset === Asset.RLUSD ? { issuer: deps.env.rlusdIssuer } : {}),
+    }),
+  );
 }
