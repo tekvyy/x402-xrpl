@@ -36,17 +36,17 @@ export interface AgentTool<Args, Result> {
 }
 
 export interface PaidFetchToolOptions {
-  /** Seller's gateway base URL, e.g. `http://host/gw/<sellerId>`. */
-  gatewayResourceBase: string;
+  /** The seller's API base URL (routes metered by x402 middleware). */
+  resourceBase: string;
   /** x402 payment configuration (wallet, client, source tag, optional channel). */
   x402: X402Config;
 }
 
-/** Build the paid-fetch tool bound to a seller's gateway and a payment config. */
+/** Build the paid-fetch tool bound to a seller's API and a payment config. */
 export function createPaidFetchTool(
   options: PaidFetchToolOptions,
 ): AgentTool<PaidFetchArgs, PaidFetchResult> {
-  const base = options.gatewayResourceBase.replace(/\/+$/, '');
+  const base = options.resourceBase.replace(/\/+$/, '');
 
   return {
     name: 'paid_fetch',

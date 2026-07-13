@@ -136,11 +136,7 @@ async function main() {
     await client.disconnect();
   }
 
-  console.log('==> Starting demo-origin, gateway, and dashboard…');
-  start('origin', 'node', ['packages/demo-origin/dist/server.js'], {
-    ...baseEnv,
-    DEMO_ORIGIN_PORT: String(DEMO_ORIGIN_PORT),
-  });
+  console.log('==> Starting gateway and dashboard…');
   start('gateway', 'node', ['packages/gateway/dist/server.js'], {
     ...baseEnv,
     GATEWAY_XRPL_SEED: gatewayWallet.seed,
@@ -154,7 +150,6 @@ async function main() {
   });
 
   await waitForHttp(`http://localhost:${GATEWAY_PORT}/sellers/00000000-0000-0000-0000-000000000000`);
-  await waitForHttp(`http://localhost:${DEMO_ORIGIN_PORT}/data`);
 
   console.log('==> Signing in the seller (sign-in-with-XRPL)…');
   const { signInWithGateway } = await import(
@@ -179,12 +174,24 @@ async function main() {
       payToAddress: sellerWallet.classicAddress,
       priceAmount: PRICE_XRP,
       priceAsset: 'XRP',
-      paymentMode: 'PAY_PER_CALL',
+      // The demo exercises both paths: 20 metered credit calls + 1 pay-per-call.
+      paymentMode: 'BOTH',
     }),
   });
   if (!sellerRes.ok) throw new Error(`seller registration failed (${sellerRes.status})`);
-  const { sellerId, gatewayUrl } = await sellerRes.json();
-  console.log(`  seller ${sellerId} → ${gatewayUrl}`);
+  const { sellerId } = await sellerRes.json();
+  console.log(`  seller ${sellerId} registered`);
+
+  // The seller's own API prices its routes via the sdk-server middleware,
+  // which delegates challenges and settlement to the gateway (facilitator).
+  console.log('==> Starting the demo seller API (x402 middleware)…');
+  start('origin', 'node', ['packages/demo-origin/dist/server.js'], {
+    ...baseEnv,
+    DEMO_ORIGIN_PORT: String(DEMO_ORIGIN_PORT),
+    GATEWAY_URL: `http://localhost:${GATEWAY_PORT}`,
+    SELLER_ID: sellerId,
+  });
+  await waitForHttp(`http://localhost:${DEMO_ORIGIN_PORT}/data`);
 
   console.log('\n==> Running the agent demo (channel → 20 metered calls → 1 pay-per-call)…\n');
   await run('agent', 'node', ['packages/agent-demo/dist/main.js'], {

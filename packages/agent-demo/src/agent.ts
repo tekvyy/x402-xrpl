@@ -4,8 +4,9 @@
  * (credits tick down, no per-call on-chain wait), then makes one pay-per-call
  * request that settles on chain — printing the explorer URL as proof.
  *
- * Every payment goes through the exact same `x402fetch` / gateway path the SDK
- * and proxy use; the agent adds only the tool-calling orchestration.
+ * Every payment goes through the exact same `x402fetch` path any x402 client
+ * uses against a middleware-metered API; the agent adds only the tool-calling
+ * orchestration.
  */
 import { Client, Wallet, dropsToXrp, xrpToDrops } from 'xrpl';
 import { loadWallet, ensureConnected, openChannel } from '@app/sdk-client';
@@ -20,11 +21,12 @@ interface SellerInfo {
   payToAddress: string;
   /** Where to open the PayChan channel — always the gateway, which redeems claims. */
   channelDestination: string;
-  gatewayUrl: string;
+  /** The seller's own API base URL (its routes are metered by x402 middleware). */
+  originUrl: string;
   priceAsset: string;
 }
 
-/** Fetch the registered seller's payTo address + gateway URL from the gateway. */
+/** Fetch the registered seller's payTo address + service URL from the gateway. */
 async function fetchSeller(config: AgentConfig): Promise<SellerInfo> {
   const response = await fetch(`${config.gatewayUrl}/sellers/${config.sellerId}`);
   if (!response.ok) throw new Error(`could not load seller ${config.sellerId} (${response.status})`);
@@ -67,7 +69,7 @@ export async function runAgentDemo(
   wallet: Wallet,
 ): Promise<{ explorerUrl?: string; txHash?: string }> {
   const seller = await fetchSeller(config);
-  const resourceBase = seller.gatewayUrl;
+  const resourceBase = seller.originUrl;
 
   console.log(`Agent ${wallet.classicAddress} buying from seller ${config.sellerId}`);
   console.log(`Opening a channel with ${config.depositXrp} XRP deposit…`);
@@ -90,12 +92,14 @@ export async function runAgentDemo(
     preferAsset: DEMO_ASSET,
     channel,
   };
-  const creditsTool = createPaidFetchTool({ gatewayResourceBase: resourceBase, x402: creditsConfig });
+  const creditsTool = createPaidFetchTool({ resourceBase, x402: creditsConfig });
   const resourcePath = config.resource.replace(/^\/+/, '');
 
   for (let call = 1; call <= config.meteredCalls; call += 1) {
     const result = await creditsTool.invoke({ path: resourcePath });
-    if (result.settlement) {
+    // The gateway attaches a settlement header to every paid response; only a
+    // tx hash means the call settled on chain instead of via off-ledger credits.
+    if (result.settlement?.txHash) {
       throw new Error(`call ${call} unexpectedly settled on-chain instead of via credits`);
     }
     console.log(
@@ -112,7 +116,7 @@ export async function runAgentDemo(
     sourceTag: config.sourceTag,
     preferAsset: DEMO_ASSET,
   };
-  const onchainTool = createPaidFetchTool({ gatewayResourceBase: resourceBase, x402: onchainConfig });
+  const onchainTool = createPaidFetchTool({ resourceBase, x402: onchainConfig });
   const onchain = await onchainTool.invoke({ path: resourcePath });
 
   const settlement = onchain.settlement;

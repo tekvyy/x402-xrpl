@@ -1,6 +1,6 @@
 # XRPL x402 Monetization Gateway
 
-A drop-in SDK + proxy that lets any HTTP API charge **per call** in **XRP** or
+A drop-in server middleware + facilitator gateway that lets any HTTP API charge **per call** in **XRP** or
 **RLUSD** using the **x402 (HTTP 402 Payment Required)** protocol — plus a live
 **seller dashboard**. It is a faithful XRPL port of Coinbase's x402 (originally
 Base/USDC): the gateway acts as the **x402 facilitator** exposing `/verify` and
@@ -28,22 +28,30 @@ activity counts toward the XRPL Commons leaderboard.
 ## Architecture
 
 ```
-AI Agent / Client  ──(x402fetch: handles 402, pays, retries)──┐
-                                                              ▼
+AI Agent / Client ──(x402fetch: handles 402, pays, retries)──► SELLER'S API
+                                                               (@app/sdk-server middleware
+                                                                on the seller's own routes)
+                                                                       │
+                                                    delegates /challenge /verify /settle
+                                                                       ▼
                                   ┌──────────── GATEWAY (x402 facilitator) ───────────┐
                                   │  • 402 challenge issuer (price, payTo, nonce)      │
                                   │  • /verify  /settle  (XRP + RLUSD)                 │
                                   │  • verifier: onchain Payment  OR  PayChan claim    │
                                   │  • credit ledger per wallet (Postgres)             │
                                   │  • nonce cache + rate limit + pubsub (Redis)       │
-                                  │  • request forwarder to origin                     │
                                   │  • usage logger  ──► dashboard (SSE)               │
-                                  └──────┬───────────────────────────────┬─────────────┘
-                                         ▼                               ▼
-                                    Origin API                    XRPL (xrpl.js):
-                                                                  verify tx / redeem
-                                                                  PayChan claim, source tag
+                                  └──────────────────┬────────────────────────────────┘
+                                                     ▼
+                                            XRPL (xrpl.js):
+                                            verify tx / redeem
+                                            PayChan claim, source tag
 ```
+
+The seller's API stays in the seller's hands — the middleware answers `402`
+for unpaid requests and lets paid ones through, delegating every x402
+decision to the gateway. Because payment is enforced *in* the seller's server,
+there is no separate unmetered origin URL to leak or bypass.
 
 ### Two payment modes
 
@@ -54,6 +62,13 @@ AI Agent / Client  ──(x402fetch: handles 402, pays, retries)──┐
   many **off-ledger** metered calls by sending monotonically increasing signed
   claims. Credits tick down with no per-call on-chain wait; the gateway redeems
   the channel on chain later. This is the fast path for AI agents.
+
+Each seller picks a **payment setup** at registration: `PAY_PER_CALL`
+(traditional), `PREPAID_CREDITS` (credits only), or `BOTH`. The 402 `accepts[]`
+advertises one entry per allowed mode, and the gateway enforces the setup
+end-to-end — settles in a disallowed mode are rejected, channels cannot be
+opened against pay-per-call-only sellers, and bots must match the seller's
+setup. Credits setups require XRP pricing (PayChan is XRP-native).
 
 ### Known limitations
 
@@ -82,12 +97,12 @@ pnpm workspaces, TypeScript (NodeNext, strict). Each package is `@app/<name>`.
 | Package | Role |
 | --- | --- |
 | `shared` | Types, enums, constants, x402 payload schemas (zod), `loadEnv()` |
-| `gateway` | Node/Fastify gateway service — facilitator + proxy + dashboard API |
+| `gateway` | Node/Fastify gateway service — x402 facilitator + dashboard API |
 | `sdk-client` | `x402fetch` + wallet/payment/channel helpers |
 | `sdk-server` | Express/Fastify server middleware (delegates to the gateway) |
 | `dashboard` | Vite + React seller dashboard |
 | `agent-demo` | AI agent demo — pays per call via an MCP-style tool |
-| `demo-origin` | Sample origin API used by the demo |
+| `demo-origin` | Demo seller API — its `/data` route is metered by the `sdk-server` middleware |
 
 ## Quick start
 
@@ -103,8 +118,9 @@ pnpm demo
 
 1. Builds every package and applies migrations.
 2. Faucet-funds three fresh testnet wallets — gateway, agent, seller.
-3. Boots `demo-origin` (`:8403`), `gateway` (`:8402`), and the `dashboard` (`:5173`).
-4. Registers a demo seller (origin = `demo-origin`, price = `0.01 XRP`).
+3. Boots the `gateway` (`:8402`) and the `dashboard` (`:5173`).
+4. Registers a demo seller (price = `0.01 XRP`, setup = `BOTH`), then boots
+   `demo-origin` (`:8403`) with the x402 middleware charging as that seller.
 5. Runs the agent: open one PayChan → **20 off-ledger metered calls** → **one
    pay-per-call** request that settles on chain, printing the explorer URL.
 
@@ -123,7 +139,7 @@ pnpm login <YOUR_WALLET_SEED>   # prints a session token
 
 Paste the token into the dashboard's "Sign in" screen. Two tabs:
 
-- **My APIs** — register origin APIs and watch live revenue, usage, and the
+- **My APIs** — register your APIs and watch live revenue, usage, and the
   settlement feed (scoped to your signed-in address).
 - **My Bots** — configure self-custody paying agents (seller, spend caps,
   deposit) and download a ready-to-run `.env` + run command. The bot seed stays

@@ -13,4 +13,3 @@ export { verifyPayPerCall } from './services/verify.service.js';
 export type { SettleOutcome, SettleDeps } from './services/settle.service.js';
 export type { VerifyContext, VerifyResult } from './services/verify.service.js';
 export type { GatewayDeps } from './deps.js';
-export { sellerGatewayUrl } from './deps.js';

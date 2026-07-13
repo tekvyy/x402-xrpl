@@ -6,7 +6,10 @@ import { buildOrigin } from './index.js';
 
 const port = Number(process.env.DEMO_ORIGIN_PORT ?? 8403);
 
-buildOrigin()
+buildOrigin({
+  gatewayUrl: process.env.GATEWAY_URL?.replace(/\/+$/, ''),
+  sellerId: process.env.SELLER_ID,
+})
   .listen({ port, host: '0.0.0.0' })
   .catch((err) => {
     console.error(err);

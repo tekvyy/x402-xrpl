@@ -44,7 +44,7 @@ export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDep
     if (!seller) return reply.code(404).send({ error: 'unknown seller' });
 
     const requirements = await issueChallenge(deps, seller, parsed.data.resource);
-    return reply.send({ x402Version: 1, accepts: [requirements] });
+    return reply.send({ x402Version: 1, accepts: requirements });
   });
 
   app.post('/settle', async (request, reply) => {

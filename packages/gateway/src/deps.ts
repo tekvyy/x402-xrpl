@@ -14,13 +14,8 @@ export interface GatewayDeps {
   redis: Redis;
   xrpl: XrplService;
   env: AppEnv;
-  /** Public base URL used to build seller gateway URLs (no trailing slash). */
+  /** Public facilitator base URL handed to bots and middleware (no trailing slash). */
   publicBaseUrl: string;
-}
-
-/** Build the public proxy URL a seller hands to their callers. */
-export function sellerGatewayUrl(deps: GatewayDeps, sellerId: string): string {
-  return `${deps.publicBaseUrl}/gw/${sellerId}`;
 }
 
 /**

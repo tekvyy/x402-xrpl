@@ -12,7 +12,7 @@ export interface AgentConfig {
   sellerId: string;
   /** XRPL wallet seed the agent pays from. */
   seed: string;
-  /** Resource path under the seller's gateway URL (leading slash). */
+  /** Resource path under the seller's API base URL (leading slash). */
   resource: string;
   /** Channel deposit in XRP (human units). */
   depositXrp: string;

@@ -91,6 +91,9 @@ importers:
 
   packages/demo-origin:
     dependencies:
+      '@app/sdk-server':
+        specifier: workspace:*
+        version: link:../sdk-server
       '@app/shared':
         specifier: workspace:*
         version: link:../shared
