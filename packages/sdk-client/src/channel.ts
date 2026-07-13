@@ -15,8 +15,12 @@ export const DEFAULT_SETTLE_DELAY = 86_400;
 export interface OpenChannelParams {
   client: Client;
   wallet: Wallet;
-  /** Seller's XRPL classic address (the channel destination). */
-  sellerPayTo: string;
+  /**
+   * Channel destination — the address funds are released to. Read this from the
+   * seller info's `channelDestination`: always the gateway, which is the
+   * channel recipient that redeems claims and forwards the seller's cut.
+   */
+  destination: string;
   /** Deposit in XRP (human units). */
   deposit: string;
   /** Team source tag stamped on the channel-create tx. */
@@ -40,12 +44,12 @@ export interface ChannelHandle {
 }
 
 /**
- * Submit a source-tagged `PaymentChannelCreate` to `sellerPayTo` and return a
+ * Submit a source-tagged `PaymentChannelCreate` to `destination` and return a
  * {@link ChannelHandle} for spending credits. The channel id is read from the
  * created ledger entry in the transaction metadata.
  */
 export async function openChannel(params: OpenChannelParams): Promise<ChannelHandle> {
-  const { client, wallet, sellerPayTo, deposit, sourceTag } = params;
+  const { client, wallet, destination, deposit, sourceTag } = params;
   await ensureConnected(client);
 
   const depositDrops = xrpToDrops(deposit);
@@ -53,7 +57,7 @@ export async function openChannel(params: OpenChannelParams): Promise<ChannelHan
     TransactionType: 'PaymentChannelCreate',
     Account: wallet.classicAddress,
     Amount: depositDrops,
-    Destination: sellerPayTo,
+    Destination: destination,
     SettleDelay: params.settleDelay ?? DEFAULT_SETTLE_DELAY,
     PublicKey: wallet.publicKey,
     SourceTag: sourceTag,

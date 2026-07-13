@@ -55,6 +55,26 @@ AI Agent / Client  ──(x402fetch: handles 402, pays, retries)──┐
   claims. Credits tick down with no per-call on-chain wait; the gateway redeems
   the channel on chain later. This is the fast path for AI agents.
 
+### Known limitations
+
+PayChan is x402's *shape* on XRPL, not EIP-3009's *economics*. Two consequences
+a caller should plan around:
+
+- **Per-seller capital lockup.** Unlike an EIP-3009 authorization drawn from one
+  fungible USDC balance, a PayChan channel is per (payer, destination) and must be
+  funded on chain up front. An agent that calls many sellers opens (and locks
+  capital in) a channel per seller; the first call to a new seller still costs an
+  on-chain channel open or a pay-per-call.
+- **RLUSD has no off-ledger fast path.** PayChan is XRP-native, so prepaid credits
+  are XRP-only. Pricing in RLUSD works only via pay-per-call (one on-chain
+  settlement, ~a ledger round-trip, per call). Stable-unit pricing and the
+  off-ledger fast path are therefore mutually exclusive today.
+
+The gateway safeguards the credits path: it rejects channels whose `SettleDelay`
+or `CancelAfter` leave too little runway to redeem, stops honoring claims near
+expiry, and auto-redeems on chain as a channel fills — so delivered value is
+pulled before a channel can be closed and its deposit reclaimed.
+
 ## Monorepo layout
 
 pnpm workspaces, TypeScript (NodeNext, strict). Each package is `@app/<name>`.
@@ -138,6 +158,7 @@ Copy `.env.example` to `.env`. Key vars:
 | `GATEWAY_PORT` | Gateway HTTP port (default `8402`) |
 | `DASHBOARD_ORIGIN` | Allowed dashboard origin (CORS) |
 | `ESCROW_ENABLED` | Custodial escrow-credits fallback (default `false`; the authentic path is PayChan) |
+| `PLATFORM_FEE_BPS` | Platform fee in basis points on the PayChan credits path (default `0` = off). When set, channels open to the gateway, which redeems on chain and forwards the seller's cut minus the fee. |
 
 ### Mainnet vs testnet
 

@@ -6,6 +6,7 @@
  */
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
+import { xrpToDrops } from 'xrpl';
 import {
   Asset,
   ChallengeStatus,
@@ -23,10 +24,11 @@ import {
   insertUsageEvent,
   transitionChallengeStatus,
 } from '../db/repositories.js';
-import type { ChallengeRow, SellerRow } from '../db/types.js';
+import type { ChallengeRow, ChannelRow, SellerRow } from '../db/types.js';
 import type { UsageEventRow } from '../db/types.js';
 import { verifyPayPerCall, verifyPrepaidClaim } from './verify.service.js';
 import type { VerifyContext } from './verify.service.js';
+import { autoRedeemIfNeeded } from './channel.service.js';
 import { publishUsageEvent } from './usage.service.js';
 import { XrplService } from './xrpl.service.js';
 
@@ -239,11 +241,30 @@ async function settlePrepaidCredits(
   if (!channel) return reject('unknown channel');
   if (channel.seller_id !== seller.id) return reject('channel does not belong to this seller');
 
+  // Reconcile the stored credits with the validated ledger before delivering
+  // another off-ledger-paid request. This rejects legacy seller-direct channels,
+  // source-initiated closure, and balances not accounted for by this gateway.
+  const ledgerChannel = await deps.xrpl.getPaymentChannel(payload.channelId);
+  if (
+    !ledgerChannel ||
+    ledgerChannel.Destination !== deps.xrpl.address() ||
+    ledgerChannel.Account !== channel.wallet_address ||
+    ledgerChannel.PublicKey !== channel.public_key ||
+    ledgerChannel.Amount !== xrpToDrops(channel.deposit_amount) ||
+    ledgerChannel.Balance !== xrpToDrops(channel.redeemed_amount)
+  ) {
+    return reject('channel ledger state does not match its registered credit state');
+  }
+  if (ledgerChannel.Expiration != null) {
+    return reject('channel has a pending expiration; open a new channel');
+  }
+
   const result = verifyPrepaidClaim(payload, channel, ctx);
   if (!result.ok) return reject(result.reason);
 
   const client = await deps.pool.connect();
   let usageEvent: UsageEventRow;
+  let appliedChannel: ChannelRow;
   try {
     await client.query('BEGIN');
 
@@ -265,6 +286,7 @@ async function settlePrepaidCredits(
       await client.query('ROLLBACK');
       return reject('claim is stale, duplicate, or exceeds the channel deposit');
     }
+    appliedChannel = applied;
 
     usageEvent = await insertUsageEvent(client, {
       sellerId: seller.id,
@@ -285,6 +307,11 @@ async function settlePrepaidCredits(
   }
 
   await publishUsageEvent(deps.redis, usageEvent);
+
+  // Best-effort: pull the delivered value on chain once the channel is mostly
+  // spent or nearing expiry. Fire-and-forget so it never delays the paid call;
+  // the manual /redeem route stays the backstop.
+  void autoRedeemIfNeeded(deps, appliedChannel);
 
   return {
     result: SettleResult.SETTLED,

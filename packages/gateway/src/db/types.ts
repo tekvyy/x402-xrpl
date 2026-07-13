@@ -60,6 +60,8 @@ export interface PaymentRow {
   asset: Asset;
   tx_hash: string;
   source_tag: string;
+  /** Platform fee retained on this payment (human unit); "0" when the path has no fee. */
+  platform_fee: string;
   created_at: Date;
 }
 
@@ -87,10 +89,16 @@ export interface ChannelRow {
   credits_total: string;
   /** Cumulative credits spent (human unit) — the latest claim's amount. */
   credits_used: string;
+  /** Cumulative XRP already redeemed on ledger from accepted claims. */
+  redeemed_amount: string;
   /** Latest accepted claim signature; null until the first claim. */
   last_claim_signature: string | null;
   /** Channel signing public key (hex), read from the ledger at registration. */
   public_key: string | null;
+  /** PayChan `SettleDelay` (seconds), read from the ledger at registration. */
+  settle_delay: number | null;
+  /** Immutable `CancelAfter` expiry as a timestamp; null when the channel sets none. */
+  cancel_after: Date | null;
   status: ChannelStatus;
   created_at: Date;
 }

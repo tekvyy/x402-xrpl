@@ -18,6 +18,8 @@ import type { AgentConfig } from './config.js';
 /** Seller fields the agent reads from the gateway to open a channel. */
 interface SellerInfo {
   payToAddress: string;
+  /** Where to open the PayChan channel — always the gateway, which redeems claims. */
+  channelDestination: string;
   gatewayUrl: string;
   priceAsset: string;
 }
@@ -73,7 +75,7 @@ export async function runAgentDemo(
   const channel = await openChannel({
     client,
     wallet,
-    sellerPayTo: seller.payToAddress,
+    destination: seller.channelDestination,
     deposit: config.depositXrp,
     sourceTag: config.sourceTag,
   });

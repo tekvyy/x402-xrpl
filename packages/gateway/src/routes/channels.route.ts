@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { SettleResult } from '@app/shared';
 import { registerChannel, redeemChannel } from '../services/channel.service.js';
 import { depositEscrow } from '../services/escrow.service.js';
+import { getChannelByChannelId, getSeller } from '../db/repositories.js';
+import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
 
 const RegisterChannelSchema = z.object({
@@ -23,6 +25,7 @@ const EscrowDepositSchema = z.object({
 });
 
 export function registerChannelRoutes(app: FastifyInstance, deps: GatewayDeps): void {
+  const auth = requireAuth(deps);
   app.post('/channels', async (request, reply) => {
     const parsed = RegisterChannelSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -43,7 +46,13 @@ export function registerChannelRoutes(app: FastifyInstance, deps: GatewayDeps): 
     });
   });
 
-  app.post<{ Params: { id: string } }>('/channels/:id/redeem', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/channels/:id/redeem', { preHandler: auth }, async (request, reply) => {
+    const channel = await getChannelByChannelId(deps.pool, request.params.id);
+    if (!channel) return reply.code(404).send({ error: 'unknown channel' });
+    const seller = await getSeller(deps.pool, channel.seller_id);
+    if (!seller || seller.owner_address !== request.ownerAddress) {
+      return reply.code(403).send({ error: 'only the seller owner can redeem this channel' });
+    }
     const outcome = await redeemChannel(deps, request.params.id);
     if (outcome.result !== SettleResult.SETTLED) {
       return reply.code(400).send({ error: outcome.reason ?? 'redeem rejected' });

@@ -123,12 +123,15 @@ export interface InsertPaymentInput {
   asset: Asset;
   txHash: string;
   sourceTag: number;
+  /** Platform fee retained (human unit); defaults to 0 when the path has no fee. */
+  platformFee?: string;
 }
 
 export async function insertPayment(db: Queryable, input: InsertPaymentInput): Promise<PaymentRow> {
   const { rows } = await db.query<PaymentRow>(
-    `INSERT INTO payments (challenge_id, wallet_address, mode, amount, asset, tx_hash, source_tag)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO payments
+       (challenge_id, wallet_address, mode, amount, asset, tx_hash, source_tag, platform_fee)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [
       input.challengeId,
@@ -138,6 +141,7 @@ export async function insertPayment(db: Queryable, input: InsertPaymentInput): P
       input.asset,
       input.txHash,
       input.sourceTag,
+      input.platformFee ?? '0',
     ],
   );
   return rows[0]!;
@@ -182,13 +186,18 @@ export interface CreateChannelInput {
   asset: Asset;
   creditsTotal: string;
   publicKey: string;
+  /** PayChan `SettleDelay` (seconds), read from the ledger. */
+  settleDelay: number;
+  /** Immutable `CancelAfter` expiry, or null when the channel sets none. */
+  cancelAfter: Date | null;
 }
 
 export async function createChannel(db: Queryable, input: CreateChannelInput): Promise<ChannelRow> {
   const { rows } = await db.query<ChannelRow>(
     `INSERT INTO channels
-       (channel_id, wallet_address, seller_id, deposit_amount, asset, credits_total, public_key)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (channel_id, wallet_address, seller_id, deposit_amount, asset, credits_total,
+        public_key, settle_delay, cancel_after)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [
       input.channelId,
@@ -198,6 +207,8 @@ export async function createChannel(db: Queryable, input: CreateChannelInput): P
       input.asset,
       input.creditsTotal,
       input.publicKey,
+      input.settleDelay,
+      input.cancelAfter,
     ],
   );
   return rows[0]!;
@@ -257,6 +268,53 @@ export async function setChannelStatus(
     channelId,
     status,
   ]);
+}
+
+/** Lease one outstanding redemption and return its stable cumulative snapshot. */
+export async function beginChannelRedemption(
+  db: Queryable,
+  channelId: string,
+): Promise<ChannelRow | null> {
+  const { rows } = await db.query<ChannelRow>(
+    `UPDATE channels
+     SET status = 'SETTLING'::channel_status_enum
+     WHERE channel_id = $1
+       AND status = 'OPEN'::channel_status_enum
+       AND credits_used > redeemed_amount
+       AND last_claim_signature IS NOT NULL
+     RETURNING *`,
+    [channelId],
+  );
+  return rows[0] ?? null;
+}
+
+/** Persist a validated cumulative redemption and release the redemption lease. */
+export async function completeChannelRedemption(
+  db: Queryable,
+  channelId: string,
+  redeemedAmount: string,
+): Promise<ChannelRow | null> {
+  const { rows } = await db.query<ChannelRow>(
+    `UPDATE channels
+     SET redeemed_amount = $2::numeric, status = 'OPEN'::channel_status_enum
+     WHERE channel_id = $1
+       AND status = 'SETTLING'::channel_status_enum
+       AND redeemed_amount < $2::numeric
+       AND $2::numeric <= credits_used
+     RETURNING *`,
+    [channelId, redeemedAmount],
+  );
+  return rows[0] ?? null;
+}
+
+/** Release a failed redemption lease without changing the ledger watermark. */
+export async function abandonChannelRedemption(db: Queryable, channelId: string): Promise<void> {
+  await db.query(
+    `UPDATE channels
+     SET status = 'OPEN'::channel_status_enum
+     WHERE channel_id = $1 AND status = 'SETTLING'::channel_status_enum`,
+    [channelId],
+  );
 }
 
 export interface CreateEscrowCreditInput {

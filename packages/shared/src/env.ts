@@ -26,6 +26,10 @@ const EnvSchema = z.object({
     .enum(['true', 'false', '1', '0'])
     .optional()
     .transform((value) => value === 'true' || value === '1'),
+  // Optional: platform fee in basis points (1% = 100 bps) taken on the PayChan
+  // credits path. Prepaid channels always pay the gateway, which redeems on
+  // chain and forwards the seller's cut minus this fee. Max 10000 (100%).
+  PLATFORM_FEE_BPS: z.coerce.number().int().min(0).max(10_000).optional(),
 });
 
 /** Fully resolved config, with `xrplEndpoint` defaulted from the network. */
@@ -43,6 +47,8 @@ export interface AppEnv {
   dashboardOrigin: string;
   /** Whether the config-gated escrow-credits fallback is enabled (US-004). */
   escrowEnabled: boolean;
+  /** Platform fee in basis points taken on the PayChan credits path (0 = off). */
+  platformFeeBps: number;
 }
 
 /**
@@ -71,5 +77,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     gatewayPort: data.GATEWAY_PORT,
     dashboardOrigin: data.DASHBOARD_ORIGIN,
     escrowEnabled: data.ESCROW_ENABLED ?? false,
+    platformFeeBps: data.PLATFORM_FEE_BPS ?? 0,
   };
 }

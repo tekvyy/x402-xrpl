@@ -36,6 +36,31 @@ export function explorerTxUrl(network: XrplNetwork, txHash: string): string {
 /** Largest value an XRPL source tag / u32 field can hold. */
 export const MAX_UINT32 = 4_294_967_295;
 
+/**
+ * Minimum PayChan `SettleDelay` (seconds) the gateway will register. A channel
+ * owner can only force-close and reclaim the unspent deposit at
+ * `close_time + SettleDelay`, so this is the redemption runway the gateway is
+ * guaranteed even if the owner sets `Expiration` to the earliest allowed value.
+ * A tiny SettleDelay would let a client spend credits off-ledger, force-close,
+ * and reclaim the deposit before the gateway can redeem — so we refuse it.
+ */
+export const MIN_CHANNEL_SETTLE_DELAY_SEC = 60 * 60;
+
+/**
+ * Refuse to register — and stop honoring off-ledger claims against — a channel
+ * within this many seconds of its immutable `CancelAfter` expiry, so the gateway
+ * always has time to redeem what was already delivered before the channel can be
+ * cancelled and the deposit returned to the payer.
+ */
+export const CHANNEL_REDEEM_BUFFER_SEC = 15 * 60;
+
+/**
+ * Auto-redeem a channel on chain once this fraction of its deposit has been
+ * spent off-ledger, so delivered value is pulled on chain well before the
+ * channel nears exhaustion or expiry.
+ */
+export const CHANNEL_AUTO_REDEEM_RATIO = 0.8;
+
 /** XRPL classic address: `r` + 24–34 base58 (Ripple alphabet) characters. */
 export const XRPL_CLASSIC_ADDRESS_PATTERN = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 

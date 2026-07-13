@@ -32,6 +32,26 @@ interface AccountTxInner {
   hash?: string;
 }
 
+/** Minimal validated submission result used to reject tes/tec failures. */
+interface SubmittedTxResult {
+  result: {
+    hash?: string;
+    validated?: boolean;
+    meta?: { TransactionResult?: string } | string;
+  };
+}
+
+function requireTesSuccess(response: unknown, operation: string): string {
+  const result = response as SubmittedTxResult;
+  const meta = result?.result?.meta;
+  const engineResult = typeof meta === 'object' && meta !== null ? meta.TransactionResult : undefined;
+  const hash = result?.result?.hash;
+  if (result?.result?.validated !== true || engineResult !== 'tesSUCCESS' || !hash) {
+    throw new Error(`${operation} did not validate successfully (${engineResult ?? 'unknown result'})`);
+  }
+  return hash;
+}
+
 /** The PayChannel ledger-entry fields we read (xrpl.js does not export the type). */
 export interface PayChannelEntry {
   LedgerEntryType: 'PayChannel';
@@ -44,6 +64,10 @@ export interface PayChannelEntry {
   /** Channel signing public key (hex). */
   PublicKey: string;
   SettleDelay: number;
+  /** Immutable expiry (ripple epoch seconds); after it, anyone can cancel the channel. */
+  CancelAfter?: number;
+  /** Mutable expiry (ripple epoch seconds) the owner may set, never below `close_time + SettleDelay`. */
+  Expiration?: number;
 }
 
 /**
@@ -176,7 +200,7 @@ export class XrplService {
     const prepared = await this.client.autofill(tx);
     const signed = wallet.sign(prepared);
     const result = await this.client.submitAndWait(signed.tx_blob);
-    return result.result.hash;
+    return requireTesSuccess(result, 'Payment');
   }
 
   /**
@@ -222,7 +246,7 @@ export class XrplService {
     const prepared = await this.client.autofill(tx);
     const signed = wallet.sign(prepared);
     const result = await this.client.submitAndWait(signed.tx_blob);
-    return result.result.hash;
+    return requireTesSuccess(result, 'PaymentChannelClaim');
   }
 }
 

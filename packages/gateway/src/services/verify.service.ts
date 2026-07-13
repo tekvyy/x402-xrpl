@@ -4,7 +4,7 @@
  * side effects, so it can back the inline proxy path, `/settle`, and the
  * `/verify` facilitator endpoint (US-005) without duplication.
  */
-import { Asset } from '@app/shared';
+import { Asset, CHANNEL_REDEEM_BUFFER_SEC } from '@app/shared';
 import type { PayPerCallPayload, PrepaidCreditsPayload } from '@app/shared';
 import { dropsToXrp, verifyPaymentChannelClaim, xrpToDrops } from 'xrpl';
 import { decimalGte, isDecimalString } from '../util/decimal.js';
@@ -182,6 +182,7 @@ export function verifyPrepaidClaim(
   payload: PrepaidCreditsPayload,
   channel: ChannelRow,
   ctx: VerifyContext,
+  nowMs: number = Date.now(),
 ): PrepaidVerifyResult {
   if (ctx.requiredAsset !== Asset.XRP) {
     return fail('PayChan credits support XRP only; use pay-per-call or escrow for RLUSD');
@@ -190,6 +191,17 @@ export function verifyPrepaidClaim(
   if (channel.asset !== Asset.XRP) return fail('channel asset is not XRP');
   if (channel.wallet_address !== payload.payer) return fail('claim payer does not own the channel');
   if (!channel.public_key) return fail('channel is missing its signing public key');
+
+  // Stop honoring off-ledger claims once the channel is within the redeem buffer
+  // of its immutable CancelAfter — past that the gateway may not be able to
+  // redeem before the payer can cancel and reclaim the deposit. Delivering more
+  // value here would be unbacked, so reject and force a fresh channel.
+  if (
+    channel.cancel_after != null &&
+    channel.cancel_after.getTime() - nowMs <= CHANNEL_REDEEM_BUFFER_SEC * 1000
+  ) {
+    return fail('channel is at or near its expiry; open a new channel');
+  }
 
   if (!isDecimalString(payload.cumulativeAmount)) return fail('cumulative amount is not numeric');
   const newCumulativeHuman = String(dropsToXrp(payload.cumulativeAmount));

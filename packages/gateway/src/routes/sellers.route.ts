@@ -13,7 +13,7 @@ import type { SellerRow } from '../db/types.js';
 import { isDecimalString } from '../util/decimal.js';
 import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
-import { sellerGatewayUrl } from '../deps.js';
+import { channelDestinationFor, sellerGatewayUrl } from '../deps.js';
 
 const CreateSellerSchema = z.object({
   name: z.string().min(1).max(120),
@@ -38,6 +38,10 @@ function toSellerResponse(deps: GatewayDeps, seller: SellerRow): Record<string, 
     priceAsset: seller.price_asset,
     paymentMode: seller.payment_mode,
     gatewayUrl: sellerGatewayUrl(deps, seller.id),
+    // Where a prepaid PayChan channel must be opened: the gateway when a platform
+    // fee is active (it redeems and forwards the seller's cut), else the seller.
+    channelDestination: channelDestinationFor(deps, seller),
+    platformFeeBps: deps.env.platformFeeBps,
   };
 }
 
