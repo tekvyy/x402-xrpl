@@ -1,7 +1,8 @@
 /**
  * Client-side sign-in-with-XRPL. Signs a gateway challenge with a wallet seed
  * (locally — the seed never leaves the caller) and exchanges it for a dashboard
- * session token. Used by the `pnpm login` helper and the demo orchestrator.
+ * session token. Programmatic/headless use only (demo orchestrator, tests);
+ * interactive users sign in from the dashboard with a browser wallet.
  */
 import { Wallet } from 'xrpl';
 import { sign } from 'ripple-keypairs';

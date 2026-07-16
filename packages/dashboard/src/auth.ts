@@ -1,8 +1,8 @@
 /**
  * Dashboard session state. The session token is minted by the gateway after a
- * sign-in-with-XRPL handshake (signed by the user's wallet via `pnpm login` or a
- * browser wallet) and stored locally. We only *read* the address out of the
- * token for display — the gateway is the sole authority on validity.
+ * sign-in-with-XRPL handshake (signed by the user's browser wallet) and stored
+ * locally. We only *read* the address out of the token for display — the
+ * gateway is the sole authority on validity.
  */
 import { TOKEN_STORAGE_KEY } from './config.js';
 
@@ -58,6 +58,19 @@ export function saveSession(token: string): Session | null {
     // Non-fatal: persistence is a convenience.
   }
   return session;
+}
+
+/**
+ * Consume a session token handed over in the URL fragment (`#token=…`), as
+ * printed by the demo orchestrator for its faucet-funded throwaway seller
+ * wallet (which no browser extension holds). The fragment never reaches the
+ * server; it is stripped from the address bar immediately after being read.
+ */
+export function consumeUrlToken(): Session | null {
+  const token = /[#&]token=([^&]+)/.exec(window.location.hash)?.[1];
+  if (!token) return null;
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  return saveSession(decodeURIComponent(token));
 }
 
 export function clearSession(): void {

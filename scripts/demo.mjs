@@ -204,8 +204,8 @@ async function main() {
     METERED_CALLS,
   });
 
-  console.log('\n==> Demo complete. Dashboard is live:');
-  console.log(`      http://localhost:${DASHBOARD_PORT}  (enter seller id: ${sellerId})`);
+  console.log('\n==> Demo complete. Dashboard is live (pre-authenticated as the demo seller):');
+  console.log(`      http://localhost:${DASHBOARD_PORT}/#token=${encodeURIComponent(session.token)}`);
   console.log('    Press Ctrl-C to stop the gateway, origin, and dashboard.');
 }
 

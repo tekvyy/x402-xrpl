@@ -254,7 +254,12 @@ async function settlePrepaidCredits(
     ledgerChannel.Destination !== deps.xrpl.address() ||
     ledgerChannel.Account !== channel.wallet_address ||
     ledgerChannel.PublicKey !== channel.public_key ||
-    ledgerChannel.Amount !== xrpToDrops(channel.deposit_amount) ||
+    // The on-ledger deposit must at least cover the credits we registered. A
+    // payer may top up the channel on-ledger (PaymentChannelFund), which only
+    // raises `Amount`; those extra funds stay unspendable until the channel is
+    // re-registered, but the top-up must not brick the channel. A ledger Amount
+    // *below* the registered deposit means state we don't recognise — reject.
+    BigInt(ledgerChannel.Amount) < BigInt(xrpToDrops(channel.deposit_amount)) ||
     ledgerChannel.Balance !== xrpToDrops(channel.redeemed_amount)
   ) {
     return reject('channel ledger state does not match its registered credit state');

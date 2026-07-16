@@ -129,15 +129,18 @@ down. Full walkthrough in [`DEMO.md`](DEMO.md).
 
 ## Dashboard sign-in
 
-The dashboard (`:5173`) requires a session. Auth is **sign-in-with-XRPL**: you
-sign a gateway challenge with your wallet key — the seed never leaves your
-machine.
+The dashboard (`:5173`) requires a session. Auth is **sign-in-with-XRPL**:
+connect a browser wallet (GemWallet, Crossmark, Xaman, WalletConnect via
+[xrpl-connect](https://github.com/XRPL-Commons/xrpl-connect)) and sign a
+one-time challenge — no transaction is submitted, no fees are charged, and the
+seed never leaves the wallet. GemWallet and Crossmark work with zero config;
+Xaman needs `VITE_XAMAN_API_KEY` and WalletConnect needs
+`VITE_WALLETCONNECT_PROJECT_ID`.
 
-```bash
-pnpm login <YOUR_WALLET_SEED>   # prints a session token
-```
+(`pnpm demo` prints a pre-authenticated dashboard URL for its throwaway
+testnet seller wallet, so no extension is needed to watch the demo.)
 
-Paste the token into the dashboard's "Sign in" screen. Two tabs:
+Two tabs:
 
 - **My APIs** — register your APIs and watch live revenue, usage, and the
   settlement feed (scoped to your signed-in address).

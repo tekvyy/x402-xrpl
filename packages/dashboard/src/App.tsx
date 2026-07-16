@@ -4,7 +4,7 @@
  * (buy — configure + monitor self-custody paying agents).
  */
 import { useCallback, useState } from 'react';
-import { clearSession, loadSession, saveSession, type Session } from './auth.js';
+import { clearSession, consumeUrlToken, loadSession, saveSession, type Session } from './auth.js';
 import { shortenAddress } from './format.js';
 import { Login } from './components/Login.js';
 import { SellerTab } from './components/SellerTab.js';
@@ -16,7 +16,7 @@ enum Tab {
 }
 
 export function App(): JSX.Element {
-  const [session, setSession] = useState<Session | null>(loadSession);
+  const [session, setSession] = useState<Session | null>(() => consumeUrlToken() ?? loadSession());
   const [tab, setTab] = useState<Tab>(Tab.APIS);
 
   const authenticate = useCallback((next: Session) => {

@@ -30,21 +30,18 @@ The dashboard (`:5173`) requires a session. Authentication is
 **sign-in-with-XRPL** (via [xrpl-connect](https://github.com/XRPL-Commons/xrpl-connect)):
 you sign a one-time challenge with your wallet — the seed never leaves it.
 
-**Primary — browser wallet (GemWallet / Crossmark / Xaman / WalletConnect):**
-click *Connect <wallet>* on the login screen. The dashboard requests a
-challenge, has the wallet sign a throwaway (never-submitted) `AccountSet` whose
-memo carries the nonce, and the gateway verifies the signed tx blob server-side
-(deterministic, wallet-agnostic). GemWallet and Crossmark work with zero config;
-Xaman needs `VITE_XAMAN_API_KEY` and WalletConnect needs
-`VITE_WALLETCONNECT_PROJECT_ID` (adapters load only when their key is set).
+Click *Connect <wallet>* on the login screen (GemWallet / Crossmark / Xaman /
+WalletConnect). The dashboard requests a challenge, has the wallet sign a
+throwaway (never-submitted) `AccountSet` whose memo carries the nonce, and the
+gateway verifies the signed tx blob server-side (deterministic,
+wallet-agnostic). GemWallet and Crossmark work with zero config; Xaman needs
+`VITE_XAMAN_API_KEY` and WalletConnect needs `VITE_WALLETCONNECT_PROJECT_ID`
+(adapters load only when their key is set).
 
-**Fallback — headless / no extension:** under *Advanced: paste a session token*,
-run the CLI helper and paste the printed token:
-
-```bash
-# builds must exist (pnpm -r build); the demo does this for you
-pnpm login <YOUR_WALLET_SEED>
-```
+The demo's seller wallet is a faucet-funded throwaway no extension holds, so
+the orchestrator signs it in headlessly and prints a **pre-authenticated
+dashboard URL** (`http://localhost:5173/#token=…`) at the end of the run — open
+that to watch the demo without any wallet setup.
 
 Once in, two tabs:
 

@@ -107,7 +107,9 @@ function memoContainsNonce(tx: RawTx, nonce: string): boolean {
     const data = entry.Memo?.MemoData;
     if (!data) return false;
     try {
-      return Buffer.from(data, 'hex').toString('utf8').includes(nonce);
+      // Exact match, not substring: a memo embedding two nonces must not satisfy
+      // two different challenges off one Payment. Mirrors the auth path's `===`.
+      return Buffer.from(data, 'hex').toString('utf8') === nonce;
     } catch {
       return false;
     }
@@ -138,6 +140,7 @@ export async function verifyPayPerCall(
   if (tx.TransactionType !== 'Payment') return fail('referenced transaction is not a Payment');
   if (tx.Destination !== ctx.payTo) return fail('payment destination does not match seller');
   if (!tx.Account) return fail('transaction has no sender');
+  if (payload.payer !== tx.Account) return fail('claimed payer does not match the on-ledger sender');
   if (!memoContainsNonce(tx, ctx.nonce)) return fail('challenge nonce missing from tx memo');
 
   const delivered = deliveredAmount(tx);

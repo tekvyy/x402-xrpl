@@ -13,5 +13,11 @@ export type Queryable = Pick<Pool, 'query'>;
 
 /** Create a Postgres pool from a connection string. */
 export function createPool(connectionString: string): Pool {
-  return new PgPool({ connectionString });
+  const pool = new PgPool({ connectionString });
+  // node-postgres emits `error` on idle clients (DB restart, network blip). An
+  // unhandled EventEmitter `error` would crash the whole gateway — log instead.
+  pool.on('error', (err) => {
+    console.error('[db] idle client error', err);
+  });
+  return pool;
 }

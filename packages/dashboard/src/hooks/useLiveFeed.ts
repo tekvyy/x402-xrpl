@@ -15,6 +15,7 @@ export interface LiveFeedState {
 }
 
 export function useLiveFeed(
+  token: string,
   sellerId: string | null,
   onEvent?: (event: UsageStreamEvent) => void,
 ): LiveFeedState {
@@ -33,7 +34,7 @@ export function useLiveFeed(
     setEvents([]);
     setStatus('connecting');
 
-    const source = new EventSource(usageStreamUrl(sellerId));
+    const source = new EventSource(usageStreamUrl(token, sellerId));
 
     source.onopen = () => setStatus('live');
     source.onmessage = (message: MessageEvent<string>) => {
@@ -50,7 +51,7 @@ export function useLiveFeed(
     source.onerror = () => setStatus('error');
 
     return () => source.close();
-  }, [sellerId]);
+  }, [token, sellerId]);
 
   return { events, status };
 }

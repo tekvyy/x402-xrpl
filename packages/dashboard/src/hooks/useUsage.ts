@@ -27,7 +27,7 @@ export interface UsageState {
   reload: () => void;
 }
 
-export function useUsage(sellerId: string | null): UsageState {
+export function useUsage(token: string, sellerId: string | null): UsageState {
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +49,9 @@ export function useUsage(sellerId: string | null): UsageState {
     setError(null);
 
     Promise.all([
-      fetchSummary(sellerId, controller.signal),
-      fetchTopEndpoints(sellerId, controller.signal),
-      fetchByWallet(sellerId, controller.signal),
+      fetchSummary(token, sellerId, controller.signal),
+      fetchTopEndpoints(token, sellerId, controller.signal),
+      fetchByWallet(token, sellerId, controller.signal),
     ])
       .then(([summary, endpoints, wallets]) => {
         setData({ summary, endpoints, wallets });
@@ -66,7 +66,7 @@ export function useUsage(sellerId: string | null): UsageState {
     return () => controller.abort();
     // `data` is intentionally excluded from deps: it is only read to decide
     // whether to show the skeleton, and must not retrigger the fetch.
-  }, [sellerId, nonce]);
+  }, [token, sellerId, nonce]);
 
   return { data, loading, error, reload };
 }

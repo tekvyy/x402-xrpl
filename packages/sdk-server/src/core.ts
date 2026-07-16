@@ -44,6 +44,13 @@ function base(options: X402MiddlewareOptions): string {
   return options.gatewayUrl.replace(/\/+$/, '');
 }
 
+/**
+ * Facilitator-call timeout. Without it, a hung or slow gateway would make every
+ * metered request on the seller's app hang indefinitely (resource exhaustion).
+ * On timeout the fetch rejects and the caller fails closed — the route never runs.
+ */
+const FACILITATOR_TIMEOUT_MS = 10_000;
+
 /** Ask the facilitator to issue a single-use challenge for `resource`. */
 async function requestChallenge(
   options: X402MiddlewareOptions,
@@ -53,6 +60,7 @@ async function requestChallenge(
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sellerId: options.sellerId, resource }),
+    signal: AbortSignal.timeout(FACILITATOR_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`facilitator challenge failed (${response.status})`);
@@ -69,6 +77,7 @@ async function settlePayment(
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sellerId: options.sellerId, payment }),
+    signal: AbortSignal.timeout(FACILITATOR_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`facilitator settle failed (${response.status})`);

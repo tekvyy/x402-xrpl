@@ -39,8 +39,8 @@ export function SellerTab({ token, onUnauthorized }: SellerTabProps): JSX.Elemen
 
   useEffect(loadSellers, [loadSellers]);
 
-  const { data, loading, error: usageError, reload } = useUsage(selected);
-  const { events, status } = useLiveFeed(selected, reload);
+  const { data, loading, error: usageError, reload } = useUsage(token, selected);
+  const { events, status } = useLiveFeed(token, selected, reload);
 
   return (
     <div className="tab-content">

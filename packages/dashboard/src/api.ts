@@ -84,35 +84,52 @@ export function fetchSeller(sellerId: string, signal?: AbortSignal): Promise<Sel
   return getJson<SellerInfo>(`/sellers/${encodeURIComponent(sellerId)}`, signal);
 }
 
-export function fetchSummary(sellerId: string, signal?: AbortSignal): Promise<UsageSummary> {
-  return getJson<UsageSummary>(`/usage/summary?sellerId=${encodeURIComponent(sellerId)}`, signal);
+export function fetchSummary(
+  token: string,
+  sellerId: string,
+  signal?: AbortSignal,
+): Promise<UsageSummary> {
+  return authed<UsageSummary>(
+    `/usage/summary?sellerId=${encodeURIComponent(sellerId)}`,
+    token,
+    { signal },
+  );
 }
 
 export async function fetchTopEndpoints(
+  token: string,
   sellerId: string,
   signal?: AbortSignal,
 ): Promise<EndpointUsage[]> {
-  const data = await getJson<{ endpoints: EndpointUsage[] }>(
+  const data = await authed<{ endpoints: EndpointUsage[] }>(
     `/usage/top-endpoints?sellerId=${encodeURIComponent(sellerId)}`,
-    signal,
+    token,
+    { signal },
   );
   return data.endpoints;
 }
 
 export async function fetchByWallet(
+  token: string,
   sellerId: string,
   signal?: AbortSignal,
 ): Promise<WalletUsage[]> {
-  const data = await getJson<{ wallets: WalletUsage[] }>(
+  const data = await authed<{ wallets: WalletUsage[] }>(
     `/usage/by-wallet?sellerId=${encodeURIComponent(sellerId)}`,
-    signal,
+    token,
+    { signal },
   );
   return data.wallets;
 }
 
-/** Full SSE URL for a seller's live usage stream. */
-export function usageStreamUrl(sellerId: string): string {
-  return `${GATEWAY_URL}/usage/stream?sellerId=${encodeURIComponent(sellerId)}`;
+/**
+ * Full SSE URL for a seller's live usage stream. The session token rides in a
+ * query param because `EventSource` cannot send an `Authorization` header.
+ */
+export function usageStreamUrl(token: string, sellerId: string): string {
+  return `${GATEWAY_URL}/usage/stream?sellerId=${encodeURIComponent(
+    sellerId,
+  )}&token=${encodeURIComponent(token)}`;
 }
 
 // --- Sign-in-with-XRPL handshake --------------------------------------------
@@ -164,7 +181,7 @@ export class UnauthorizedError extends ApiError {
 async function authed<T>(
   path: string,
   token: string,
-  init: { method?: string; body?: unknown } = {},
+  init: { method?: string; body?: unknown; signal?: AbortSignal } = {},
 ): Promise<T> {
   const response = await fetch(`${GATEWAY_URL}${path}`, {
     method: init.method ?? 'GET',
@@ -173,6 +190,7 @@ async function authed<T>(
       ...(init.body !== undefined ? { 'content-type': 'application/json' } : {}),
     },
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+    signal: init.signal,
   });
   if (response.status === 401) throw new UnauthorizedError();
   if (!response.ok) {

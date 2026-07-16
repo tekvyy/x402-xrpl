@@ -7,17 +7,20 @@
  *   GET  /usage/by-wallet     → per-wallet call count + spend
  *   GET  /usage/stream        → SSE live feed of settlements (Redis pub/sub)
  */
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { PaymentPayloadSchema, SettleResult } from '@app/shared';
 import type { PaymentResponse } from '@app/shared';
 import {
+  getSeller,
   getTopEndpoints,
   getUsageByWallet,
   getUsageSummary,
 } from '../db/repositories.js';
 import { verify } from '../services/settle.service.js';
 import { usageChannelName } from '../services/usage.service.js';
+import { verifyToken } from '../services/auth.service.js';
+import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
 
 /** Facilitator verify request: which seller + the payment payload to check. */
@@ -28,10 +31,48 @@ const VerifyBodySchema = z.object({
 
 const SellerQuerySchema = z.object({ sellerId: z.string().uuid() });
 
+/**
+ * The SSE stream is opened by the browser's `EventSource`, which cannot set an
+ * `Authorization` header — so the session token rides in a query param instead.
+ */
+const StreamQuerySchema = z.object({
+  sellerId: z.string().uuid(),
+  token: z.string().min(1),
+});
+
 /** Heartbeat interval keeps SSE connections alive through idle proxies. */
 const SSE_HEARTBEAT_MS = 15_000;
 
+/**
+ * Resolve the `sellerId` query param and confirm the authenticated caller owns
+ * that seller. Usage data (revenue, customer wallets, live settlements) is
+ * private to the seller, so every read is scoped to the owner — otherwise
+ * anyone holding a seller UUID could read another seller's books. Replies with
+ * the appropriate error and returns `undefined` when the request is not allowed.
+ */
+async function authorizeSellerQuery(
+  deps: GatewayDeps,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<string | undefined> {
+  const parsed = SellerQuerySchema.safeParse(request.query);
+  if (!parsed.success) {
+    await reply.code(400).send({ error: 'sellerId query param required' });
+    return undefined;
+  }
+  const seller = await getSeller(deps.pool, parsed.data.sellerId);
+  // Do not distinguish "not found" from "not yours": both return 404 so a caller
+  // cannot probe which seller UUIDs exist.
+  if (!seller || seller.owner_address !== request.ownerAddress) {
+    await reply.code(404).send({ error: 'seller not found' });
+    return undefined;
+  }
+  return seller.id;
+}
+
 export function registerUsageRoutes(app: FastifyInstance, deps: GatewayDeps): void {
+  const auth = requireAuth(deps);
+
   app.post('/verify', async (request, reply) => {
     const parsed = VerifyBodySchema.safeParse(request.body);
     if (!parsed.success) {
@@ -46,29 +87,39 @@ export function registerUsageRoutes(app: FastifyInstance, deps: GatewayDeps): vo
     return reply.send(body);
   });
 
-  app.get('/usage/summary', async (request, reply) => {
-    const parsed = SellerQuerySchema.safeParse(request.query);
-    if (!parsed.success) return reply.code(400).send({ error: 'sellerId query param required' });
-    return reply.send(await getUsageSummary(deps.pool, parsed.data.sellerId));
+  app.get('/usage/summary', { preHandler: auth }, async (request, reply) => {
+    const sellerId = await authorizeSellerQuery(deps, request, reply);
+    if (!sellerId) return reply;
+    return reply.send(await getUsageSummary(deps.pool, sellerId));
   });
 
-  app.get('/usage/top-endpoints', async (request, reply) => {
-    const parsed = SellerQuerySchema.safeParse(request.query);
-    if (!parsed.success) return reply.code(400).send({ error: 'sellerId query param required' });
-    return reply.send({ endpoints: await getTopEndpoints(deps.pool, parsed.data.sellerId) });
+  app.get('/usage/top-endpoints', { preHandler: auth }, async (request, reply) => {
+    const sellerId = await authorizeSellerQuery(deps, request, reply);
+    if (!sellerId) return reply;
+    return reply.send({ endpoints: await getTopEndpoints(deps.pool, sellerId) });
   });
 
-  app.get('/usage/by-wallet', async (request, reply) => {
-    const parsed = SellerQuerySchema.safeParse(request.query);
-    if (!parsed.success) return reply.code(400).send({ error: 'sellerId query param required' });
-    return reply.send({ wallets: await getUsageByWallet(deps.pool, parsed.data.sellerId) });
+  app.get('/usage/by-wallet', { preHandler: auth }, async (request, reply) => {
+    const sellerId = await authorizeSellerQuery(deps, request, reply);
+    if (!sellerId) return reply;
+    return reply.send({ wallets: await getUsageByWallet(deps.pool, sellerId) });
   });
 
   app.get('/usage/stream', async (request, reply) => {
-    const parsed = SellerQuerySchema.safeParse(request.query);
-    if (!parsed.success) return reply.code(400).send({ error: 'sellerId query param required' });
+    const parsed = StreamQuerySchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ error: 'sellerId and token required' });
 
-    await openUsageStream(deps, reply, parsed.data.sellerId);
+    // EventSource can't send an Authorization header, so authenticate the token
+    // from the query param, then scope the stream to the owner's own seller.
+    const address = verifyToken(deps.env.authSecret, parsed.data.token);
+    if (!address) return reply.code(401).send({ error: 'invalid or expired session' });
+
+    const seller = await getSeller(deps.pool, parsed.data.sellerId);
+    if (!seller || seller.owner_address !== address) {
+      return reply.code(404).send({ error: 'seller not found' });
+    }
+
+    await openUsageStream(deps, reply, seller.id);
   });
 }
 
