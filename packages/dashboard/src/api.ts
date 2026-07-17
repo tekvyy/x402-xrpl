@@ -48,6 +48,34 @@ export interface SellerInfo {
   paymentMode: PaymentSetup;
 }
 
+/** One publicly listed service from `GET /catalog`. */
+export interface CatalogService {
+  sellerId: string;
+  name: string;
+  originUrl: string;
+  payToAddress: string;
+  priceAmount: string;
+  priceAsset: Asset;
+  paymentMode: PaymentSetup;
+  /** Where a prepaid PayChan channel must be opened. */
+  channelDestination: string;
+  platformFeeBps: number;
+}
+
+/** `GET /catalog` response: the public service registry agents discover from. */
+export interface Catalog {
+  network: string;
+  facilitator: string;
+  services: CatalogService[];
+}
+
+/** Fetch the public service catalog (no auth). */
+export async function fetchCatalog(): Promise<Catalog> {
+  const response = await fetch(`${GATEWAY_URL}/catalog`);
+  if (!response.ok) throw new ApiError(`Gateway responded ${response.status}`, response.status);
+  return (await response.json()) as Catalog;
+}
+
 /** Live-feed event pushed over `GET /usage/stream` (SSE). */
 export interface UsageStreamEvent {
   id: string;
@@ -163,9 +191,10 @@ export function requestAuthChallenge(
 /** Exchange a wallet-signed challenge transaction for a session token. */
 export function verifyAuthTx(
   address: string,
+  nonce: string,
   txBlob: string,
 ): Promise<{ token: string; address: string; expiresAt: number }> {
-  return postJson('/auth/verify-tx', { address, txBlob });
+  return postJson('/auth/verify-tx', { address, nonce, txBlob });
 }
 
 // --- Authenticated endpoints (sign-in-with-XRPL bearer token) ---------------

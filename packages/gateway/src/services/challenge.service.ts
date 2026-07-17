@@ -1,8 +1,8 @@
 /**
  * 402 challenge issuance. Creates a single-use, request-bound nonce, persists
- * it (PENDING) and mirrors it into the Redis nonce cache, then returns the
- * x402 `PaymentRequirements` describing how to pay. The wire `amount` follows
- * the x402 convention: drops for XRP, human units for RLUSD.
+ * it (PENDING) in Postgres — the sole replay-protection ledger — then returns
+ * the x402 `PaymentRequirements` describing how to pay. The wire `amount`
+ * follows the x402 convention: drops for XRP, human units for RLUSD.
  */
 import { randomUUID } from 'node:crypto';
 import { xrpToDrops } from 'xrpl';
@@ -15,7 +15,6 @@ import {
 import type { PaymentRequirements } from '@app/shared';
 import { createChallenge } from '../db/repositories.js';
 import type { SellerRow } from '../db/types.js';
-import { cacheNonce } from '../redis/client.js';
 import type { GatewayDeps } from '../deps.js';
 
 /**
@@ -40,7 +39,6 @@ export async function issueChallenge(
     resource,
     expiresAt,
   });
-  await cacheNonce(deps.redis, nonce, CHALLENGE_TTL_MS);
 
   const wireAmount =
     seller.price_asset === Asset.XRP ? xrpToDrops(seller.price_amount) : seller.price_amount;

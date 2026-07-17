@@ -15,12 +15,13 @@ import type { Redis } from 'ioredis';
 import { decode, deriveAddress, verifyKeypairSignature, verifySignature } from 'xrpl';
 import { CHALLENGE_TTL_MS, buildSignInMessage } from '@app/shared';
 import type { AuthChallengeResponse, AuthVerifyResponse } from '@app/shared';
+import { SESSION_TTL_MS } from '../constants.js';
 
-/** Session-token lifetime: 12 hours. */
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
-
-function challengeKey(address: string): string {
-  return `auth:challenge:${address}`;
+// Keyed by (address, nonce), not address alone: an unauthenticated
+// /auth/challenge for someone else's address must never overwrite that
+// victim's in-flight challenge (login denial of service).
+function challengeKey(address: string, nonce: string): string {
+  return `auth:challenge:${address}:${nonce}`;
 }
 
 /** What we persist per challenge — enough to verify either signing path. */
@@ -30,12 +31,16 @@ interface StoredChallenge {
 }
 
 /**
- * Fetch and consume (single-use) a stored challenge for an address. Uses
- * `GETDEL` so the read-and-delete is atomic — two concurrent verifies can never
- * both claim the same challenge.
+ * Fetch and consume (single-use) the stored challenge for an (address, nonce)
+ * pair. Uses `GETDEL` so the read-and-delete is atomic — two concurrent
+ * verifies can never both claim the same challenge.
  */
-async function takeChallenge(redis: Redis, address: string): Promise<StoredChallenge | null> {
-  const raw = await redis.getdel(challengeKey(address));
+async function takeChallenge(
+  redis: Redis,
+  address: string,
+  nonce: string,
+): Promise<StoredChallenge | null> {
+  const raw = await redis.getdel(challengeKey(address, nonce));
   if (!raw) return null;
   try {
     return JSON.parse(raw) as StoredChallenge;
@@ -57,12 +62,14 @@ export async function issueAuthChallenge(
   const issuedAt = new Date(now).toISOString();
   const message = buildSignInMessage({ address, nonce, issuedAt });
   const stored: StoredChallenge = { nonce, message };
-  await redis.set(challengeKey(address), JSON.stringify(stored), 'PX', CHALLENGE_TTL_MS);
+  await redis.set(challengeKey(address, nonce), JSON.stringify(stored), 'PX', CHALLENGE_TTL_MS);
   return { message, nonce, expiresAt: now + CHALLENGE_TTL_MS };
 }
 
 export interface VerifyAuthInput {
   address: string;
+  /** The challenge nonce this verification answers. */
+  nonce: string;
   signature: string;
   publicKey: string;
 }
@@ -82,7 +89,7 @@ export async function verifyAuthSignature(
   input: VerifyAuthInput,
   now: number = Date.now(),
 ): Promise<AuthVerifyOutcome> {
-  const challenge = await takeChallenge(redis, input.address);
+  const challenge = await takeChallenge(redis, input.address, input.nonce);
   if (!challenge) return { ok: false, reason: 'no active challenge; request a new one' };
 
   let derived: string;
@@ -109,6 +116,8 @@ export async function verifyAuthSignature(
 
 export interface VerifyAuthTxInput {
   address: string;
+  /** The challenge nonce this verification answers. */
+  nonce: string;
   txBlob: string;
 }
 
@@ -146,7 +155,7 @@ export async function verifyAuthTransaction(
   input: VerifyAuthTxInput,
   now: number = Date.now(),
 ): Promise<AuthVerifyOutcome> {
-  const challenge = await takeChallenge(redis, input.address);
+  const challenge = await takeChallenge(redis, input.address, input.nonce);
   if (!challenge) return { ok: false, reason: 'no active challenge; request a new one' };
 
   let tx: DecodedAuthTx;

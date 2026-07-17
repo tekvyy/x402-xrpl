@@ -14,10 +14,13 @@ import {
   verifyAuthSignature,
   verifyAuthTransaction,
 } from '../services/auth.service.js';
+import { AUTH_RATE_LIMIT } from '../constants.js';
+import { rateLimitByIp } from '../util/rate-limit.js';
 import type { GatewayDeps } from '../deps.js';
 
 export function registerAuthRoutes(app: FastifyInstance, deps: GatewayDeps): void {
-  app.post('/auth/challenge', async (request, reply) => {
+  const limited = { preHandler: rateLimitByIp(deps.redis, AUTH_RATE_LIMIT) };
+  app.post('/auth/challenge', limited, async (request, reply) => {
     const parsed = AuthChallengeRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: 'invalid request', issues: parsed.error.issues });
@@ -26,7 +29,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: GatewayDeps): voi
     return reply.send(challenge);
   });
 
-  app.post('/auth/verify', async (request, reply) => {
+  app.post('/auth/verify', limited, async (request, reply) => {
     const parsed = AuthVerifyRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: 'invalid request', issues: parsed.error.issues });
@@ -36,7 +39,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: GatewayDeps): voi
     return reply.send(outcome.response);
   });
 
-  app.post('/auth/verify-tx', async (request, reply) => {
+  app.post('/auth/verify-tx', limited, async (request, reply) => {
     const parsed = AuthVerifyTxRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: 'invalid request', issues: parsed.error.issues });

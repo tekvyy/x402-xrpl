@@ -18,13 +18,15 @@ import type { PaymentResponse } from '@app/shared';
 import { getSeller } from '../db/repositories.js';
 import { issueChallenge } from '../services/challenge.service.js';
 import { settle } from '../services/settle.service.js';
+import { CHALLENGE_RATE_LIMIT } from '../constants.js';
+import { rateLimitByIp } from '../util/rate-limit.js';
 import type { GatewayDeps } from '../deps.js';
 
 /** Request a challenge for a registered seller's resource path. */
 const ChallengeBodySchema = z.object({
   sellerId: z.string().uuid(),
   /** The seller's own route being priced (leading-slash path). */
-  resource: z.string().min(1),
+  resource: z.string().min(1).max(512),
 });
 
 /** Settle a payment presented by the middleware on a client's retry. */
@@ -34,7 +36,8 @@ const SettleBodySchema = z.object({
 });
 
 export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDeps): void {
-  app.post('/challenge', async (request, reply) => {
+  const limited = { preHandler: rateLimitByIp(deps.redis, CHALLENGE_RATE_LIMIT) };
+  app.post('/challenge', limited, async (request, reply) => {
     const parsed = ChallengeBodySchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: 'invalid challenge request', issues: parsed.error.issues });

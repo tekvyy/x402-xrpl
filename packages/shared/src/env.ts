@@ -30,6 +30,13 @@ const EnvSchema = z.object({
   // credits path. Prepaid channels always pay the gateway, which redeems on
   // chain and forwards the seller's cut minus this fee. Max 10000 (100%).
   PLATFORM_FEE_BPS: z.coerce.number().int().min(0).max(10_000).optional(),
+  // Optional: honor X-Forwarded-For from a fronting reverse proxy so per-IP
+  // rate limits key on the real client, not the proxy. Only enable when the
+  // gateway is actually behind a trusted proxy.
+  TRUST_PROXY: z
+    .enum(['true', 'false', '1', '0'])
+    .optional()
+    .transform((value) => value === 'true' || value === '1'),
 });
 
 /** Fully resolved config, with `xrplEndpoint` defaulted from the network. */
@@ -49,6 +56,8 @@ export interface AppEnv {
   escrowEnabled: boolean;
   /** Platform fee in basis points taken on the PayChan credits path (0 = off). */
   platformFeeBps: number;
+  /** Whether to trust X-Forwarded-For from a fronting reverse proxy. */
+  trustProxy: boolean;
 }
 
 /**
@@ -78,5 +87,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     dashboardOrigin: data.DASHBOARD_ORIGIN,
     escrowEnabled: data.ESCROW_ENABLED ?? false,
     platformFeeBps: data.PLATFORM_FEE_BPS ?? 0,
+    trustProxy: data.TRUST_PROXY ?? false,
   };
 }

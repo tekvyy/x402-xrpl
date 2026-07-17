@@ -65,6 +65,18 @@ export enum ChannelStatus {
   CLOSED = 'CLOSED',
 }
 
+/**
+ * Lifecycle of a seller payout owed from a channel redemption. `SENDING` marks
+ * an in-flight on-chain forward; a row stuck there means the process died
+ * mid-payment and needs manual review (never auto-retried, to avoid double
+ * paying).
+ */
+export enum PayoutStatus {
+  PENDING = 'PENDING',
+  SENDING = 'SENDING',
+  PAID = 'PAID',
+}
+
 /** Outcome of a facilitator verify/settle operation. */
 export enum SettleResult {
   VERIFIED = 'VERIFIED',

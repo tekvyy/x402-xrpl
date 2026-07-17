@@ -3,7 +3,14 @@
  * `pg` (to preserve precision) and we keep them as strings end-to-end; enum
  * columns are typed with the shared enums so the DB and wire stay in lockstep.
  */
-import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode, PaymentSetup } from '@app/shared';
+import type {
+  Asset,
+  ChallengeStatus,
+  ChannelStatus,
+  PaymentMode,
+  PaymentSetup,
+  PayoutStatus,
+} from '@app/shared';
 
 export interface SellerRow {
   id: string;
@@ -101,7 +108,31 @@ export interface ChannelRow {
   /** Immutable `CancelAfter` expiry as a timestamp; null when the channel sets none. */
   cancel_after: Date | null;
   status: ChannelStatus;
+  /** When the SETTLING lease was taken; null unless a redemption is in flight. */
+  settling_since: Date | null;
   created_at: Date;
+}
+
+/** A seller cut owed (or paid) from a channel redemption. */
+export interface ChannelPayoutRow {
+  id: string;
+  channel_id: string;
+  seller_id: string;
+  /** Seller pay-to address the cut is forwarded to. */
+  destination: string;
+  /** Owed amount in XRP (human unit). */
+  amount: string;
+  status: PayoutStatus;
+  /** Claim tx that redeemed the funds; null when recovered by reconciliation. */
+  redeem_tx_hash: string | null;
+  /** Forward Payment hash, written before submission for crash recovery. */
+  payout_tx_hash: string | null;
+  /** Send attempts so far; exhausted payouts stop auto-retrying. */
+  attempts: number;
+  /** When the current SENDING claim was taken; null unless in flight. */
+  sending_at: Date | null;
+  created_at: Date;
+  paid_at: Date | null;
 }
 
 export interface EscrowCreditRow {

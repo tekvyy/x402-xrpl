@@ -8,6 +8,15 @@
  * readable message the wallet displays before signing.
  */
 import { z } from 'zod';
+import { XRPL_CLASSIC_ADDRESS_PATTERN } from './constants.js';
+
+/** XRPL classic address, validated for shape (also bounds its length). */
+export const XrplAddressSchema = z
+  .string()
+  .regex(XRPL_CLASSIC_ADDRESS_PATTERN, 'not a valid XRPL classic address');
+
+/** Server-issued challenge nonce (32 hex chars today; bounded, not pinned). */
+const NonceSchema = z.string().min(1).max(64);
 
 /** Fields that fully determine a sign-in challenge message. */
 export interface SignInMessageParams {
@@ -38,7 +47,7 @@ export function buildSignInMessage(params: SignInMessageParams): string {
 
 /** `POST /auth/challenge` request: who wants to sign in. */
 export const AuthChallengeRequestSchema = z.object({
-  address: z.string().min(25),
+  address: XrplAddressSchema,
 });
 export type AuthChallengeRequest = z.infer<typeof AuthChallengeRequestSchema>;
 
@@ -53,7 +62,9 @@ export type AuthChallengeResponse = z.infer<typeof AuthChallengeResponseSchema>;
 
 /** `POST /auth/verify` request: the signed challenge message (CLI / keypair path). */
 export const AuthVerifyRequestSchema = z.object({
-  address: z.string().min(25),
+  address: XrplAddressSchema,
+  /** The challenge nonce being answered; selects which challenge to verify. */
+  nonce: NonceSchema,
   /** Hex signature over the challenge message. */
   signature: z.string().min(1),
   /** Signing public key (hex); must derive to `address`. */
@@ -69,7 +80,9 @@ export type AuthVerifyRequest = z.infer<typeof AuthVerifyRequestSchema>;
  * arbitrary-message signing, whose scheme differs per wallet).
  */
 export const AuthVerifyTxRequestSchema = z.object({
-  address: z.string().min(25),
+  address: XrplAddressSchema,
+  /** The challenge nonce being answered; selects which challenge to verify. */
+  nonce: NonceSchema,
   /** Signed transaction blob (hex) from the wallet's `sign` (not submitted). */
   txBlob: z.string().min(1),
 });

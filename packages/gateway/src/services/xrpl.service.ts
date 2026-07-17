@@ -41,6 +41,12 @@ interface SubmittedTxResult {
   };
 }
 
+/** The rippled error code carried by an xrpl.js RippledError, if any. */
+export function rippledErrorCode(err: unknown): string | undefined {
+  const data = (err as { data?: { error?: unknown } } | null)?.data;
+  return typeof data?.error === 'string' ? data.error : undefined;
+}
+
 function requireTesSuccess(response: unknown, operation: string): string {
   const result = response as SubmittedTxResult;
   const meta = result?.result?.meta;
@@ -181,8 +187,16 @@ export class XrplService {
   /**
    * Submit a source-tagged Payment from the gateway wallet and wait for
    * validation. Returns the settled transaction hash.
+   *
+   * `onSigned` (optional) is awaited with the transaction's hash after signing
+   * but BEFORE submission — persist it there so an ambiguous submit error
+   * (e.g. a disconnect while waiting for validation) can later be resolved by
+   * looking the hash up on the ledger.
    */
-  async submitPayment(params: SubmitPaymentParams): Promise<string> {
+  async submitPayment(
+    params: SubmitPaymentParams,
+    onSigned?: (txHash: string) => Promise<void>,
+  ): Promise<string> {
     await this.connect();
     const wallet = this.getWallet();
     const tx: Payment = {
@@ -199,6 +213,7 @@ export class XrplService {
     }
     const prepared = await this.client.autofill(tx);
     const signed = wallet.sign(prepared);
+    if (onSigned) await onSigned(signed.hash);
     const result = await this.client.submitAndWait(signed.tx_blob);
     return requireTesSuccess(result, 'Payment');
   }
@@ -207,6 +222,11 @@ export class XrplService {
    * Read a payment channel's on-ledger state. Used when a channel is registered
    * (POST /channels) to trust the ledger — not the client — for the channel's
    * destination, deposit, and signing public key.
+   *
+   * Returns `null` ONLY when the ledger definitively has no such entry;
+   * transport/node errors are rethrown. Callers treat `null` as "channel is
+   * gone" (some irreversibly, e.g. marking it CLOSED), so a transient RPC
+   * failure must never masquerade as absence.
    */
   async getPaymentChannel(channelId: string): Promise<PayChannelEntry | null> {
     await this.connect();
@@ -219,8 +239,9 @@ export class XrplService {
       const node = response.result.node as PayChannelEntry | undefined;
       if (!node || node.LedgerEntryType !== 'PayChannel') return null;
       return node;
-    } catch {
-      return null;
+    } catch (err) {
+      if (rippledErrorCode(err) === 'entryNotFound') return null;
+      throw err;
     }
   }
 

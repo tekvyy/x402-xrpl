@@ -11,9 +11,11 @@ import { Spinner } from './States.js';
 
 interface LoginProps {
   onAuthenticated: (session: Session) => void;
+  /** Return to the public landing page. */
+  onBack?: () => void;
 }
 
-export function Login({ onAuthenticated }: LoginProps): JSX.Element {
+export function Login({ onAuthenticated, onBack }: LoginProps): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +26,7 @@ export function Login({ onAuthenticated }: LoginProps): JSX.Element {
       const address = await connectWallet(walletId);
       const { nonce } = await requestAuthChallenge(address);
       const txBlob = await signChallenge(address, nonce);
-      const verified = await verifyAuthTx(address, txBlob);
+      const verified = await verifyAuthTx(address, nonce, txBlob);
       const session = sessionFromToken(verified.token);
       if (!session) throw new Error('gateway returned an invalid token');
       onAuthenticated(session);
@@ -65,6 +67,12 @@ export function Login({ onAuthenticated }: LoginProps): JSX.Element {
         </p>
 
         {error && <p className="login-error">{error}</p>}
+
+        {onBack && (
+          <button className="login-back" type="button" onClick={onBack}>
+            ← back to the registry
+          </button>
+        )}
       </div>
     </div>
   );

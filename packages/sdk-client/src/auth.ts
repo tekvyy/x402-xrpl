@@ -55,7 +55,12 @@ export async function signInWithGateway(params: SignInParams): Promise<AuthVerif
   const verifyRes = await doFetch(`${base}/auth/verify`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ address: wallet.classicAddress, signature, publicKey }),
+    body: JSON.stringify({
+      address: wallet.classicAddress,
+      nonce: challenge.nonce,
+      signature,
+      publicKey,
+    }),
   });
   if (!verifyRes.ok) throw new Error(`verification failed (${verifyRes.status})`);
   return (await verifyRes.json()) as AuthVerifyResponse;

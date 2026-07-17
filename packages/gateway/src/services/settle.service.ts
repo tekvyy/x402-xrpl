@@ -10,6 +10,7 @@ import { xrpToDrops } from 'xrpl';
 import {
   Asset,
   ChallengeStatus,
+  ChannelStatus,
   PaymentMode,
   SettleResult,
   explorerTxUrl,
@@ -244,11 +245,33 @@ async function settlePrepaidCredits(
   const channel = await getChannelByChannelId(deps.pool, payload.channelId);
   if (!channel) return reject('unknown channel');
   if (channel.seller_id !== seller.id) return reject('channel does not belong to this seller');
+  if (channel.status === ChannelStatus.CLOSED) {
+    return reject('channel is closed; open a new channel');
+  }
+
+  // While a redemption is in flight (SETTLING) the on-ledger Balance may have
+  // already advanced past our stored watermark toward the claimed cumulative;
+  // anything in that range is our own claim being settled, so paid calls keep
+  // flowing. Outside a redemption the Balance must match the watermark exactly.
+  const redeemedDrops = BigInt(xrpToDrops(channel.redeemed_amount));
+  const claimedDrops = BigInt(xrpToDrops(channel.credits_used));
+  const balanceMatches = (ledgerBalance: string): boolean => {
+    const balance = BigInt(ledgerBalance);
+    if (channel.status === ChannelStatus.SETTLING) {
+      return balance >= redeemedDrops && balance <= claimedDrops;
+    }
+    return balance === redeemedDrops;
+  };
 
   // Reconcile the stored credits with the validated ledger before delivering
   // another off-ledger-paid request. This rejects legacy seller-direct channels,
   // source-initiated closure, and balances not accounted for by this gateway.
-  const ledgerChannel = await deps.xrpl.getPaymentChannel(payload.channelId);
+  let ledgerChannel;
+  try {
+    ledgerChannel = await deps.xrpl.getPaymentChannel(payload.channelId);
+  } catch {
+    return reject('could not read the channel from the ledger; try again');
+  }
   if (
     !ledgerChannel ||
     ledgerChannel.Destination !== deps.xrpl.address() ||
@@ -260,7 +283,7 @@ async function settlePrepaidCredits(
     // re-registered, but the top-up must not brick the channel. A ledger Amount
     // *below* the registered deposit means state we don't recognise — reject.
     BigInt(ledgerChannel.Amount) < BigInt(xrpToDrops(channel.deposit_amount)) ||
-    ledgerChannel.Balance !== xrpToDrops(channel.redeemed_amount)
+    !balanceMatches(ledgerChannel.Balance)
   ) {
     return reject('channel ledger state does not match its registered credit state');
   }

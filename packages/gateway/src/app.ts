@@ -15,7 +15,9 @@ import { registerFacilitatorRoutes } from './routes/facilitator.route.js';
 import type { GatewayDeps } from './deps.js';
 
 export async function buildApp(deps: GatewayDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: true });
+  // trustProxy: honor X-Forwarded-For only when explicitly configured, so
+  // per-IP rate limits key on the real client behind a trusted reverse proxy.
+  const app = Fastify({ logger: true, trustProxy: deps.env.trustProxy });
 
   await app.register(cors, { origin: deps.env.dashboardOrigin });
 

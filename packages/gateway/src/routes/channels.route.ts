@@ -6,27 +6,31 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { SettleResult } from '@app/shared';
+import { XrplAddressSchema } from '@app/shared';
 import { registerChannel, redeemChannel } from '../services/channel.service.js';
 import { depositEscrow } from '../services/escrow.service.js';
 import { getChannelByChannelId, getSeller } from '../db/repositories.js';
+import { REGISTRATION_RATE_LIMIT } from '../constants.js';
+import { rateLimitByIp } from '../util/rate-limit.js';
 import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
 
 const RegisterChannelSchema = z.object({
-  channelId: z.string().min(1),
+  channelId: z.string().min(1).max(64),
   sellerId: z.string().uuid(),
-  walletAddress: z.string().min(25),
+  walletAddress: XrplAddressSchema,
 });
 
 const EscrowDepositSchema = z.object({
   sellerId: z.string().uuid(),
-  walletAddress: z.string().min(25),
-  txHash: z.string().min(1),
+  walletAddress: XrplAddressSchema,
+  txHash: z.string().min(1).max(64),
 });
 
 export function registerChannelRoutes(app: FastifyInstance, deps: GatewayDeps): void {
   const auth = requireAuth(deps);
-  app.post('/channels', async (request, reply) => {
+  const limited = { preHandler: rateLimitByIp(deps.redis, REGISTRATION_RATE_LIMIT) };
+  app.post('/channels', limited, async (request, reply) => {
     const parsed = RegisterChannelSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: 'invalid channel', issues: parsed.error.issues });
@@ -67,7 +71,7 @@ export function registerChannelRoutes(app: FastifyInstance, deps: GatewayDeps): 
 
   // Escrow fallback (config-gated): custodial credits, isolated from PayChan.
   if (deps.env.escrowEnabled) {
-    app.post('/credits/escrow/deposit', async (request, reply) => {
+    app.post('/credits/escrow/deposit', limited, async (request, reply) => {
       const parsed = EscrowDepositSchema.safeParse(request.body);
       if (!parsed.success) {
         return reply.code(400).send({ error: 'invalid deposit', issues: parsed.error.issues });

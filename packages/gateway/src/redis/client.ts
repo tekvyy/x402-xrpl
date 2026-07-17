@@ -1,20 +1,11 @@
 /**
- * Redis client factory plus the single-use nonce cache. The cache mirrors the
- * TTL of a 402 challenge so an expired nonce disappears without a DB round-trip;
- * Postgres remains the source of truth for consumption.
+ * Redis client factory. Redis backs the live-feed pub/sub, the sign-in
+ * challenge store, and rate limiting; challenge nonce consumption is enforced
+ * in Postgres (the atomic status transition in `transitionChallengeStatus`).
  */
 import { Redis } from 'ioredis';
 
 /** Create a Redis client from a connection string. */
 export function createRedis(url: string): Redis {
   return new Redis(url, { lazyConnect: true, maxRetriesPerRequest: null });
-}
-
-function nonceKey(nonce: string): string {
-  return `challenge:nonce:${nonce}`;
-}
-
-/** Record a freshly issued nonce, expiring it in `ttlMs`. */
-export async function cacheNonce(redis: Redis, nonce: string, ttlMs: number): Promise<void> {
-  await redis.set(nonceKey(nonce), '1', 'PX', ttlMs);
 }

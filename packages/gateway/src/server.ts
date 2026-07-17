@@ -7,6 +7,7 @@ import { loadEnv } from '@app/shared';
 import { createPool } from './db/pool.js';
 import { createRedis } from './redis/client.js';
 import { XrplService } from './services/xrpl.service.js';
+import { startMaintenance } from './services/maintenance.service.js';
 import { buildApp } from './app.js';
 
 async function main(): Promise<void> {
@@ -28,7 +29,10 @@ async function main(): Promise<void> {
 
   const app = await buildApp({ pool, redis, xrpl, env, publicBaseUrl });
 
+  const stopMaintenance = startMaintenance({ pool, xrpl, env });
+
   const shutdown = async (): Promise<void> => {
+    stopMaintenance();
     await app.close();
     await xrpl.disconnect();
     redis.disconnect();

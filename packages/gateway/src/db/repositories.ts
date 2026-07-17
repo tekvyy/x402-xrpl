@@ -8,6 +8,7 @@ import type { Queryable } from './pool.js';
 import type {
   BotRow,
   ChallengeRow,
+  ChannelPayoutRow,
   ChannelRow,
   EscrowCreditRow,
   PaymentRow,
@@ -48,6 +49,19 @@ export async function createSeller(db: Queryable, input: CreateSellerInput): Pro
 export async function getSeller(db: Queryable, id: string): Promise<SellerRow | null> {
   const { rows } = await db.query<SellerRow>(`SELECT * FROM sellers WHERE id = $1`, [id]);
   return rows[0] ?? null;
+}
+
+/**
+ * All registered sellers, newest first — the public service catalog agents
+ * browse to discover payable APIs. Registration is the act of publishing, so
+ * every seller is listed; only public projection fields leave the route layer.
+ */
+export async function listPublicSellers(db: Queryable, limit = 100): Promise<SellerRow[]> {
+  const { rows } = await db.query<SellerRow>(
+    `SELECT * FROM sellers ORDER BY created_at DESC LIMIT $1`,
+    [limit],
+  );
+  return rows;
 }
 
 /** All sellers owned by an address, newest first. */
@@ -235,11 +249,16 @@ export interface ApplyChannelClaimInput {
 
 /**
  * Atomically accept a claim: advance `credits_used` to `newCumulative` and
- * store its signature, but only when the channel is OPEN, the amount is
+ * store its signature, but only when the channel is usable, the amount is
  * strictly greater than the last (monotonic), stays within the deposit, and
  * covers the call's price. Returns the updated row, or `null` when any guard
  * fails — the single point that rejects stale/duplicate/over-limit claims,
  * safe under concurrency.
+ *
+ * SETTLING channels stay claimable: an in-flight redemption works from the
+ * snapshot it leased, so advancing `credits_used` under it is safe, and
+ * rejecting claims here would fail legitimate paid calls whenever the
+ * auto-redeem kicks in.
  */
 export async function applyChannelClaim(
   db: Queryable,
@@ -249,7 +268,7 @@ export async function applyChannelClaim(
     `UPDATE channels
      SET credits_used = $2::numeric, last_claim_signature = $3
      WHERE channel_id = $1
-       AND status = 'OPEN'::channel_status_enum
+       AND status IN ('OPEN'::channel_status_enum, 'SETTLING'::channel_status_enum)
        AND credits_used < $2::numeric
        AND $2::numeric <= credits_total
        AND ($2::numeric - credits_used) >= $4::numeric
@@ -277,7 +296,7 @@ export async function beginChannelRedemption(
 ): Promise<ChannelRow | null> {
   const { rows } = await db.query<ChannelRow>(
     `UPDATE channels
-     SET status = 'SETTLING'::channel_status_enum
+     SET status = 'SETTLING'::channel_status_enum, settling_since = now()
      WHERE channel_id = $1
        AND status = 'OPEN'::channel_status_enum
        AND credits_used > redeemed_amount
@@ -296,7 +315,9 @@ export async function completeChannelRedemption(
 ): Promise<ChannelRow | null> {
   const { rows } = await db.query<ChannelRow>(
     `UPDATE channels
-     SET redeemed_amount = $2::numeric, status = 'OPEN'::channel_status_enum
+     SET redeemed_amount = $2::numeric,
+         status = 'OPEN'::channel_status_enum,
+         settling_since = NULL
      WHERE channel_id = $1
        AND status = 'SETTLING'::channel_status_enum
        AND redeemed_amount < $2::numeric
@@ -311,10 +332,182 @@ export async function completeChannelRedemption(
 export async function abandonChannelRedemption(db: Queryable, channelId: string): Promise<void> {
   await db.query(
     `UPDATE channels
-     SET status = 'OPEN'::channel_status_enum
+     SET status = 'OPEN'::channel_status_enum, settling_since = NULL
      WHERE channel_id = $1 AND status = 'SETTLING'::channel_status_enum`,
     [channelId],
   );
+}
+
+/**
+ * Channels whose SETTLING lease predates `cutoff` — a redemption stranded by a
+ * crash between the on-chain claim and the watermark write. The maintenance
+ * sweep reconciles these against the ledger.
+ */
+export async function listStaleSettlingChannels(
+  db: Queryable,
+  cutoff: Date,
+): Promise<ChannelRow[]> {
+  const { rows } = await db.query<ChannelRow>(
+    `SELECT * FROM channels
+     WHERE status = 'SETTLING'::channel_status_enum
+       AND (settling_since IS NULL OR settling_since < $1)`,
+    [cutoff],
+  );
+  return rows;
+}
+
+export interface InsertChannelPayoutInput {
+  channelId: string;
+  sellerId: string;
+  destination: string;
+  /** Owed seller cut in XRP (human unit). */
+  amount: string;
+  /** Claim tx that redeemed the funds; null when recovered by reconciliation. */
+  redeemTxHash: string | null;
+}
+
+/** Record a seller cut owed from a redemption (inside the redemption tx). */
+export async function insertChannelPayout(
+  db: Queryable,
+  input: InsertChannelPayoutInput,
+): Promise<ChannelPayoutRow> {
+  const { rows } = await db.query<ChannelPayoutRow>(
+    `INSERT INTO channel_payouts (channel_id, seller_id, destination, amount, redeem_tx_hash)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [input.channelId, input.sellerId, input.destination, input.amount, input.redeemTxHash],
+  );
+  return rows[0]!;
+}
+
+/**
+ * Atomically claim a payout for sending (PENDING → SENDING), stamping the
+ * claim time and counting the attempt. Returns the row, or `null` when another
+ * worker already claimed it — the guard that stops two sweeps from
+ * double-paying a seller.
+ */
+export async function claimChannelPayout(
+  db: Queryable,
+  id: string,
+): Promise<ChannelPayoutRow | null> {
+  const { rows } = await db.query<ChannelPayoutRow>(
+    `UPDATE channel_payouts
+     SET status = 'SENDING'::payout_status_enum,
+         sending_at = now(),
+         attempts = attempts + 1
+     WHERE id = $1 AND status = 'PENDING'::payout_status_enum
+     RETURNING *`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * Record the forward Payment's hash BEFORE it is submitted, so a crash or an
+ * ambiguous submit error can later be resolved by looking the hash up on the
+ * ledger instead of guessing (and double paying).
+ */
+export async function setChannelPayoutTxHash(
+  db: Queryable,
+  id: string,
+  payoutTxHash: string,
+): Promise<void> {
+  await db.query(
+    `UPDATE channel_payouts
+     SET payout_tx_hash = $2
+     WHERE id = $1 AND status = 'SENDING'::payout_status_enum`,
+    [id, payoutTxHash],
+  );
+}
+
+/** Mark a claimed payout as paid on chain. */
+export async function markChannelPayoutPaid(
+  db: Queryable,
+  id: string,
+  payoutTxHash: string,
+): Promise<void> {
+  await db.query(
+    `UPDATE channel_payouts
+     SET status = 'PAID'::payout_status_enum, payout_tx_hash = $2, paid_at = now()
+     WHERE id = $1 AND status = 'SENDING'::payout_status_enum`,
+    [id, payoutTxHash],
+  );
+}
+
+/**
+ * Release a claimed payout back to PENDING for retry. Only call this when the
+ * in-flight payment is KNOWN not to have delivered (looked up on the ledger,
+ * or provably never submitted) — releasing an ambiguous send double-pays.
+ */
+export async function releaseChannelPayout(db: Queryable, id: string): Promise<void> {
+  await db.query(
+    `UPDATE channel_payouts
+     SET status = 'PENDING'::payout_status_enum, payout_tx_hash = NULL
+     WHERE id = $1 AND status = 'SENDING'::payout_status_enum`,
+    [id],
+  );
+}
+
+/** Payouts still owed to sellers with retry budget left, oldest first. */
+export async function listPendingChannelPayouts(
+  db: Queryable,
+  maxAttempts: number,
+  limit = 50,
+): Promise<ChannelPayoutRow[]> {
+  const { rows } = await db.query<ChannelPayoutRow>(
+    `SELECT * FROM channel_payouts
+     WHERE status = 'PENDING'::payout_status_enum AND attempts < $1
+     ORDER BY created_at ASC
+     LIMIT $2`,
+    [maxAttempts, limit],
+  );
+  return rows;
+}
+
+/**
+ * Payouts whose SENDING claim predates `cutoff` — the submit errored or the
+ * process died mid payment. Old enough that the submitted transaction (if any)
+ * has either validated or expired, so each can be resolved from the ledger.
+ */
+export async function listUnresolvedSendingPayouts(
+  db: Queryable,
+  cutoff: Date,
+): Promise<ChannelPayoutRow[]> {
+  const { rows } = await db.query<ChannelPayoutRow>(
+    `SELECT * FROM channel_payouts
+     WHERE status = 'SENDING'::payout_status_enum
+       AND (sending_at IS NULL OR sending_at < $1)`,
+    [cutoff],
+  );
+  return rows;
+}
+
+/** Payouts that exhausted their retry budget; owed money needing an operator. */
+export async function listExhaustedChannelPayouts(
+  db: Queryable,
+  maxAttempts: number,
+): Promise<ChannelPayoutRow[]> {
+  const { rows } = await db.query<ChannelPayoutRow>(
+    `SELECT * FROM channel_payouts
+     WHERE status = 'PENDING'::payout_status_enum AND attempts >= $1`,
+    [maxAttempts],
+  );
+  return rows;
+}
+
+/**
+ * Drop challenges that expired before `cutoff` and were never consumed, so an
+ * anonymous caller cannot grow the table without bound. Consumed challenges
+ * are kept — payments reference them. Returns the number of rows removed.
+ */
+export async function deleteExpiredChallenges(db: Queryable, cutoff: Date): Promise<number> {
+  const { rowCount } = await db.query(
+    `DELETE FROM challenges
+     WHERE expires_at < $1
+       AND status IN ('PENDING'::challenge_status_enum, 'EXPIRED'::challenge_status_enum)`,
+    [cutoff],
+  );
+  return rowCount ?? 0;
 }
 
 export interface CreateEscrowCreditInput {
@@ -528,28 +721,50 @@ export async function getEscrowCreditByTxHash(
 
 /**
  * Atomically debit `amount` (human unit) of escrow credits for a wallet, only
- * when sufficient unused balance remains. Returns the updated row, or `null`
- * when the balance is insufficient — the off-ledger debit guard.
+ * when the wallet's *combined* unused balance covers it. The debit drains rows
+ * oldest-first and may span several deposits (5 + 5 covers an 8 charge).
+ * Returns `true` when debited, `false` when the balance is insufficient — the
+ * off-ledger debit guard. Rows are locked oldest-first, so concurrent debits
+ * for the same wallet serialize instead of double-spending.
  */
 export async function debitEscrowCredit(
   db: Queryable,
   sellerId: string,
   walletAddress: string,
   amount: string,
-): Promise<EscrowCreditRow | null> {
-  const { rows } = await db.query<EscrowCreditRow>(
-    `UPDATE escrow_credits
-     SET credits_used = credits_used + $3::numeric
-     WHERE id = (
-       SELECT id FROM escrow_credits
-       WHERE seller_id = $1 AND wallet_address = $2
-         AND (credits_total - credits_used) >= $3::numeric
-       ORDER BY created_at ASC
-       LIMIT 1
+): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `WITH locked AS (
+       SELECT id, created_at, credits_total, credits_used
+       FROM escrow_credits
+       WHERE seller_id = $1 AND wallet_address = $2 AND credits_used < credits_total
+       ORDER BY created_at ASC, id ASC
        FOR UPDATE
+     ),
+     ranked AS (
+       SELECT id,
+              credits_total - credits_used AS available,
+              COALESCE(
+                SUM(credits_total - credits_used)
+                  OVER (ORDER BY created_at ASC, id ASC
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),
+                0
+              ) AS drained_before
+       FROM locked
+     ),
+     debits AS (
+       SELECT id, LEAST(available, $3::numeric - drained_before) AS debit
+       FROM ranked
+       WHERE drained_before < $3::numeric
+     ),
+     total AS (
+       SELECT COALESCE(SUM(available), 0) AS available FROM ranked
      )
-     RETURNING *`,
+     UPDATE escrow_credits e
+     SET credits_used = e.credits_used + debits.debit
+     FROM debits, total
+     WHERE e.id = debits.id AND total.available >= $3::numeric`,
     [sellerId, walletAddress, amount],
   );
-  return rows[0] ?? null;
+  return (rowCount ?? 0) > 0;
 }
