@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@app/shared": "workspace:*",
-    "@app/sdk-client": "workspace:*",
+    "@xrpl-x402/client": "workspace:*",
     "xrpl": "^4.1.0",
     "zod": "^3.24.1"
   },

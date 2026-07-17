@@ -41,13 +41,28 @@ export function Login({ onAuthenticated, onBack }: LoginProps): JSX.Element {
   return (
     <div className="login">
       <div className="login-card">
-        <div className="brand login-brand">
-          <span className="brand-mark">x402</span>
-          <div className="brand-text">
-            <h1>XRPL x402 Gateway</h1>
-            <p>Sign in with your XRPL wallet</p>
+        {onBack ? (
+          <button
+            className="brand login-brand"
+            type="button"
+            aria-label="Back to XRPL x402 Gateway home"
+            onClick={onBack}
+          >
+            <span className="brand-mark">x402</span>
+            <div className="brand-text">
+              <h1>XRPL x402 Gateway</h1>
+              <p>Sign in with your XRPL wallet</p>
+            </div>
+          </button>
+        ) : (
+          <div className="brand login-brand">
+            <span className="brand-mark">x402</span>
+            <div className="brand-text">
+              <h1>XRPL x402 Gateway</h1>
+              <p>Sign in with your XRPL wallet</p>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="wallet-list">
           {WALLET_OPTIONS.map((wallet) => (

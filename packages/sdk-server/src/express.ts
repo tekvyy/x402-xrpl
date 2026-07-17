@@ -3,7 +3,7 @@
  * charge per call:
  *
  *   import express from 'express';
- *   import { x402Express } from '@app/sdk-server';
+ *   import { x402Express } from '@xrpl-x402/server';
  *
  *   const app = express();
  *   app.get(

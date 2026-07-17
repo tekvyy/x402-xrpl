@@ -129,13 +129,20 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
   return (
     <div className="app landing">
       <header className="app-header">
-        <div className="brand">
+        <button
+          className="brand"
+          type="button"
+          aria-label="XRPL x402 Gateway home"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
           <span className="brand-mark">x402</span>
           <div className="brand-text">
-            <h1>XRPL x402 Gateway</h1>
+            <h1>
+              XRPL x402 Gateway <span className="beta-badge">Beta · Testnet only</span>
+            </h1>
             <p>Monetize APIs · run paying agents</p>
           </div>
-        </div>
+        </button>
         <button className="btn" type="button" onClick={onSignIn}>
           Sign in with wallet
         </button>
@@ -260,7 +267,7 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           <pre className="agent-snippet">{agentSnippet}</pre>
           <p className="agent-note">
             Full client helpers (channels, claims, trustlines) ship in{' '}
-            <code>@app/sdk-client</code>; the 402 challenge itself is self-describing, so any
+            <code>@xrpl-x402/client</code>; the 402 challenge itself is self-describing, so any
             HTTP client that can sign an XRPL transaction can pay.
           </p>
         </div>
@@ -270,7 +277,10 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
         <span>
           facilitator <code>{GATEWAY_URL}</code>
         </span>
-        <span>x402 on the XRP Ledger · every settlement source-tagged on chain</span>
+        <span>
+          x402 on the XRP Ledger · every settlement source-tagged on chain · Beta, XRPL Testnet
+          only for now
+        </span>
       </footer>
     </div>
   );

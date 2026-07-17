@@ -35,12 +35,12 @@ importers:
 
   packages/agent-demo:
     dependencies:
-      '@app/sdk-client':
-        specifier: workspace:*
-        version: link:../sdk-client
       '@app/shared':
         specifier: workspace:*
         version: link:../shared
+      '@xrpl-x402/client':
+        specifier: workspace:*
+        version: link:../sdk-client
       xrpl:
         specifier: ^4.1.0
         version: 4.6.0
@@ -91,12 +91,12 @@ importers:
 
   packages/demo-origin:
     dependencies:
-      '@app/sdk-server':
-        specifier: workspace:*
-        version: link:../sdk-server
       '@app/shared':
         specifier: workspace:*
         version: link:../shared
+      '@xrpl-x402/server':
+        specifier: workspace:*
+        version: link:../sdk-server
       fastify:
         specifier: ^5.2.0
         version: 5.9.0

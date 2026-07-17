@@ -3,11 +3,11 @@
  * (name + description + input schema + handler). An MCP or LangChain host can
  * expose this verbatim, letting an autonomous agent pay for an API call the same
  * way it would call any other tool. All x402 logic is reused from
- * `@app/sdk-client` — the tool adds only the tool-calling shape.
+ * `@xrpl-x402/client` — the tool adds only the tool-calling shape.
  */
 import { z } from 'zod';
-import { x402fetch, readSettlement } from '@app/sdk-client';
-import type { X402Config } from '@app/sdk-client';
+import { x402fetch, readSettlement } from '@xrpl-x402/client';
+import type { X402Config } from '@xrpl-x402/client';
 import type { PaymentResponse } from '@app/shared';
 
 /** Arguments an agent supplies when invoking the paid-fetch tool. */

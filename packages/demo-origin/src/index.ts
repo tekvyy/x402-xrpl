@@ -1,13 +1,13 @@
 /**
  * Demo seller API used by the demo. It prices its own `/data` route with the
- * `@app/sdk-server` x402 middleware, which delegates challenge issuance and
+ * `@xrpl-x402/server` x402 middleware, which delegates challenge issuance and
  * settlement to the gateway (the facilitator) — the recommended integration.
  * With no `SELLER_ID` configured the route is served unmetered, which keeps
  * the bare server bootable before the demo registers its seller.
  */
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
-import { x402Fastify } from '@app/sdk-server';
+import { x402Fastify } from '@xrpl-x402/server';
 
 export interface OriginOptions {
   /** Facilitator (gateway) base URL, no trailing slash. */

@@ -12,7 +12,7 @@
     "dev": "node --watch dist/server.js"
   },
   "dependencies": {
-    "@app/sdk-server": "workspace:*",
+    "@xrpl-x402/server": "workspace:*",
     "@app/shared": "workspace:*",
     "fastify": "^5.2.0"
   },

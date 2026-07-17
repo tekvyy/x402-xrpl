@@ -1,5 +1,5 @@
 {
-  "name": "@app/sdk-client",
+  "name": "@xrpl-x402/client",
   "version": "0.1.0",
   "private": true,
   "type": "module",

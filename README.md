@@ -29,7 +29,7 @@ activity counts toward the XRPL Commons leaderboard.
 
 ```
 AI Agent / Client ──(x402fetch: handles 402, pays, retries)──► SELLER'S API
-                                                               (@app/sdk-server middleware
+                                                               (@xrpl-x402/server middleware
                                                                 on the seller's own routes)
                                                                        │
                                                     delegates /challenge /verify /settle
@@ -159,7 +159,7 @@ Thin HTTP wrappers over the core x402 services:
   modes, `channelDestination`) as JSON, so agents can discover what is payable.
   The dashboard's public landing page renders the same registry for humans.
 
-Server middleware (`@app/sdk-server`) is pure delegation — it holds no XRPL or
+Server middleware (`@xrpl-x402/server`) is pure delegation — it holds no XRPL or
 verify logic. Config is just `{ gatewayUrl, sellerId }`; pricing lives in the
 gateway seller registration (single source of truth).
 

@@ -1,4 +1,4 @@
-# @app/sdk-server
+# @xrpl-x402/server
 
 x402 **middleware** for sellers who prefer code over the drop-in proxy. Price
 any Express or Fastify route per call in RLUSD or XRP; the middleware delegates
@@ -39,7 +39,7 @@ curl -X POST http://localhost:8402/sellers -H 'content-type: application/json' -
 
 ```ts
 import express from 'express';
-import { x402Express } from '@app/sdk-server';
+import { x402Express } from '@xrpl-x402/server';
 
 const app = express();
 const pay = x402Express({
@@ -58,7 +58,7 @@ app.listen(3000);
 
 ```ts
 import Fastify from 'fastify';
-import { x402Fastify } from '@app/sdk-server';
+import { x402Fastify } from '@xrpl-x402/server';
 
 const app = Fastify();
 const pay = x402Fastify({
@@ -71,7 +71,7 @@ app.get('/premium', { preHandler: pay }, async () => ({ secret: 42 }));
 await app.listen({ port: 3000 });
 ```
 
-Clients pay transparently with `x402fetch` from `@app/sdk-client`.
+Clients pay transparently with `x402fetch` from `@xrpl-x402/client`.
 
 > `express` and `fastify` are optional peer dependencies — install only the one
 > you use.

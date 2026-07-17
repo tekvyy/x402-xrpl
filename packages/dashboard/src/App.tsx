@@ -43,13 +43,21 @@ export function App(): JSX.Element {
   return (
     <div className="app">
       <header className="app-header">
-        <div className="brand">
+        <button
+          className="brand"
+          type="button"
+          aria-label="XRPL x402 Gateway home"
+          onClick={() => {
+            setTab(Tab.APIS);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        >
           <span className="brand-mark">x402</span>
           <div className="brand-text">
             <h1>XRPL x402 Gateway</h1>
             <p>Monetize APIs · run paying agents</p>
           </div>
-        </div>
+        </button>
         <div className="session">
           <span className="session-addr" title={session.address}>
             <span className="dot" /> {shortenAddress(session.address)}

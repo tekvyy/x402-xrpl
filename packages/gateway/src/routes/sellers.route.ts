@@ -1,6 +1,6 @@
 /**
  * Seller registration routes. A seller registers their API (metered by the
- * `@app/sdk-server` middleware, which delegates to this gateway) with a price
+ * `@xrpl-x402/server` middleware, which delegates to this gateway) with a price
  * and a payout address. Registration and listing require a signed-in session;
  * the seller is owned by the authenticated XRPL address. The single-seller
  * lookup stays public so agents (which hold no dashboard session) can resolve

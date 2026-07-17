@@ -2,10 +2,10 @@
  * AI agent demo (US-007): an autonomous agent that pays for an API per call via
  * x402 — opening a PayChan channel, spending credits off-ledger, then settling
  * one pay-per-call request on chain. The paid-fetch tool is reusable in any
- * MCP/LangChain host; all x402 logic is reused from `@app/sdk-client`.
+ * MCP/LangChain host; all x402 logic is reused from `@xrpl-x402/client`.
  */
 import { PaymentMode } from '@app/shared';
-import { PAYMENT_HEADER } from '@app/sdk-client';
+import { PAYMENT_HEADER } from '@xrpl-x402/client';
 
 export { createPaidFetchTool, PaidFetchArgsSchema } from './tool.js';
 export type { AgentTool, PaidFetchArgs, PaidFetchResult, PaidFetchToolOptions } from './tool.js';

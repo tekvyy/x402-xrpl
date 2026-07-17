@@ -1,6 +1,6 @@
 /**
  * Register a new API (seller). On success the gateway returns the seller id
- * to plug into the `@app/sdk-server` middleware, which meters the seller's
+ * to plug into the `@xrpl-x402/server` middleware, which meters the seller's
  * own routes and delegates verify/settle to the gateway.
  */
 import { useState } from 'react';
@@ -89,7 +89,7 @@ export function RegisterApiForm({
     <div className="card panel">
       <h2>Register an API</h2>
       <p className="panel-sub">
-        Set a per-call price and payout address, then drop the <code>@app/sdk-server</code>{' '}
+        Set a per-call price and payout address, then drop the <code>@xrpl-x402/server</code>{' '}
         middleware into your API — it charges callers via this gateway; pricing lives here.
       </p>
       <form className="form-grid" onSubmit={submit}>
@@ -170,7 +170,7 @@ export function RegisterApiForm({
         <p className="form-success">
           Registered. Add the middleware to your server with seller id <code>{sellerId}</code>:{' '}
           <code>x402Fastify(&#123; gatewayUrl, sellerId &#125;)</code> (or <code>x402Express</code>)
-          from <code>@app/sdk-server</code> — pricing stays here, your routes stay yours.
+          from <code>@xrpl-x402/server</code> — pricing stays here, your routes stay yours.
         </p>
       )}
     </div>

@@ -9,8 +9,8 @@
  * orchestration.
  */
 import { Client, Wallet, dropsToXrp, xrpToDrops } from 'xrpl';
-import { loadWallet, ensureConnected, openChannel } from '@app/sdk-client';
-import type { ChannelHandle, X402Config } from '@app/sdk-client';
+import { loadWallet, ensureConnected, openChannel } from '@xrpl-x402/client';
+import type { ChannelHandle, X402Config } from '@xrpl-x402/client';
 import { SettleResult } from '@app/shared';
 import { createPaidFetchTool } from './tool.js';
 import { DEMO_ASSET } from './config.js';

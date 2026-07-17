@@ -3,7 +3,7 @@
  * Attach it to any route to charge per call:
  *
  *   import Fastify from 'fastify';
- *   import { x402Fastify } from '@app/sdk-server';
+ *   import { x402Fastify } from '@xrpl-x402/server';
  *
  *   const app = Fastify();
  *   const pay = x402Fastify({ gatewayUrl: 'http://localhost:8402', sellerId });
