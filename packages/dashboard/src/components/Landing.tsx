@@ -1,0 +1,277 @@
+/**
+ * Public landing page. Two jobs: explain the gateway in one screen, and expose
+ * the live service registry — every registered API an agent can pay for right
+ * now — with the exact commands to start consuming or selling.
+ */
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { fetchCatalog, type Catalog, type CatalogService } from '../api.js';
+import { GATEWAY_URL } from '../config.js';
+import { trimDecimal } from '../format.js';
+import { CardSkeleton } from './States.js';
+
+interface LandingProps {
+  onSignIn: () => void;
+}
+
+/** The hero terminal trace: one full x402 exchange, typed line by line. */
+const TRACE: readonly string[] = [
+  '$ curl https://api.example.dev/data',
+  '< HTTP/1.1 402 Payment Required',
+  '< accepts: 0.01 XRP · pay-per-call | prepaid-credits',
+  '$ x402fetch: signing channel claim for 0.01 XRP…',
+  '< HTTP/1.1 200 OK',
+  '< x-payment-response: SETTLED',
+  '{ "message": "premium data unlocked" }',
+];
+
+function useTypedTrace(lines: readonly string[]): number {
+  const [visible, setVisible] = useState(1);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setVisible(lines.length);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setVisible((count) => {
+        if (count >= lines.length) {
+          window.clearInterval(timer);
+          return count;
+        }
+        return count + 1;
+      });
+    }, 550);
+    return () => window.clearInterval(timer);
+  }, [lines]);
+  return visible;
+}
+
+function setupLabel(mode: CatalogService['paymentMode']): string[] {
+  if (mode === 'BOTH') return ['PAY_PER_CALL', 'PREPAID_CREDITS'];
+  return [mode];
+}
+
+/** One registry row: identity, price, modes, and the ids an agent needs. */
+function ServiceRow({ service }: { service: CatalogService }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+
+  async function copyId(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(service.sellerId);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard can be unavailable (http, permissions); the id stays visible.
+    }
+  }
+
+  return (
+    <li className="svc-row">
+      <div className="svc-id">
+        <span className="svc-name">{service.name}</span>
+        <a className="svc-origin" href={service.originUrl} rel="noreferrer" target="_blank">
+          {service.originUrl.replace(/^https?:\/\//, '')}
+        </a>
+      </div>
+      <div className="svc-price">
+        <span className="svc-price-amount">{trimDecimal(service.priceAmount)}</span>
+        <span className="svc-price-asset"> {service.priceAsset}</span>
+        <span className="svc-price-per"> / call</span>
+      </div>
+      <div className="svc-modes">
+        {setupLabel(service.paymentMode).map((mode) => (
+          <span key={mode} className={`chip chip-${mode.toLowerCase()}`}>
+            {mode === 'PAY_PER_CALL' ? 'per call' : 'credits'}
+          </span>
+        ))}
+      </div>
+      <button className="btn svc-copy" type="button" onClick={copyId} title={service.sellerId}>
+        {copied ? 'copied' : `id:${service.sellerId.slice(0, 8)}…`}
+      </button>
+    </li>
+  );
+}
+
+export function Landing({ onSignIn }: LandingProps): JSX.Element {
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const registryRef = useRef<HTMLElement | null>(null);
+  const typedLines = useTypedTrace(TRACE);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalog()
+      .then((data) => {
+        if (!cancelled) setCatalog(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError('The gateway is unreachable. Start it, then reload.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const services = catalog?.services ?? [];
+  const agentSnippet = useMemo(
+    () =>
+      [
+        `$ curl ${GATEWAY_URL}/catalog`,
+        '# → this registry as JSON: pick a sellerId, then',
+        '',
+        "const res = await x402fetch(serviceUrl + '/data', {",
+        '  x402: { wallet, client, sourceTag,',
+        "          maxAmount: { XRP: '0.05' } },",
+        '});',
+      ].join('\n'),
+    [],
+  );
+
+  return (
+    <div className="app landing">
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand-mark">x402</span>
+          <div className="brand-text">
+            <h1>XRPL x402 Gateway</h1>
+            <p>Monetize APIs · run paying agents</p>
+          </div>
+        </div>
+        <button className="btn" type="button" onClick={onSignIn}>
+          Sign in with wallet
+        </button>
+      </header>
+
+      <section className="hero">
+        <div className="hero-copy">
+          <h1 className="hero-title">
+            Your API answers <span className="hero-402">402</span>.
+            <br />
+            Machines pay it.
+          </h1>
+          <p className="hero-sub">
+            A drop-in facilitator for the x402 protocol on the XRP Ledger. Agents that can hold a
+            wallet, but not a credit card, pay per call in XRP or RLUSD: no signup, no
+            subscription, no payment processor. One middleware line on your server; settlement in
+            seconds on chain.
+          </p>
+          <div className="hero-actions">
+            <button className="btn btn-primary" type="button" onClick={onSignIn}>
+              Monetize an API
+            </button>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => registryRef.current?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              Browse services ↓
+            </button>
+          </div>
+        </div>
+
+        <div className="term" aria-label="An x402 payment exchange">
+          <div className="term-bar">
+            <span className="term-title">agent@xrpl:~</span>
+            <span className="term-net">{catalog?.network ?? 'TESTNET'}</span>
+          </div>
+          <pre className="term-body">
+            {TRACE.slice(0, typedLines).map((line, index) => (
+              <span
+                key={line}
+                className={
+                  line.startsWith('$')
+                    ? 'term-cmd'
+                    : line.startsWith('<')
+                      ? 'term-hdr'
+                      : 'term-out'
+                }
+              >
+                {line}
+                {'\n'}
+                {index === typedLines - 1 && typedLines < TRACE.length && (
+                  <span className="term-cursor" aria-hidden="true" />
+                )}
+              </span>
+            ))}
+          </pre>
+        </div>
+      </section>
+
+      <section className="lanes">
+        <div className="card panel lane">
+          <h2>Sell: meter your API</h2>
+          <ol className="lane-steps">
+            <li>Sign in with your XRPL wallet. A signed challenge, no fees, no seed.</li>
+            <li>Register the API: name, price per call, payout address, payment setup.</li>
+            <li>
+              Add the middleware to your own routes:
+              <code className="lane-code">
+                app.get(&apos;/premium&apos;, {'{ preHandler: x402(cfg) }'}, handler)
+              </code>
+            </li>
+            <li>Watch revenue, callers, and settlements stream live on the dashboard.</li>
+          </ol>
+        </div>
+        <div className="card panel lane">
+          <h2>Buy: point your agent at it</h2>
+          <ol className="lane-steps">
+            <li>Fund an XRPL wallet. That is the whole onboarding.</li>
+            <li>Pick a service from the registry below (or fetch it as JSON).</li>
+            <li>
+              <code className="lane-code">x402fetch(url, {'{ x402 }'})</code> hits the 402, pays
+              it, retries, and returns the real response.
+            </li>
+            <li>Calling one service a lot? Open a payment channel once and spend credits
+              off-ledger: no per-call on-chain wait.</li>
+          </ol>
+        </div>
+      </section>
+
+      <section className="registry" id="registry" ref={registryRef}>
+        <div className="panel-head registry-head">
+          <h2 className="panel-title">Service registry</h2>
+          <span className="feed-status feed-status-live">
+            <span className="dot" />
+            {catalog ? `${services.length} live on ${catalog.network}` : 'connecting'}
+          </span>
+        </div>
+
+        {error && <div className="error-banner">{error}</div>}
+        {!error && !catalog && (
+          <div className="card panel">
+            <CardSkeleton rows={4} />
+          </div>
+        )}
+        {catalog && services.length === 0 && (
+          <div className="empty-state">
+            No services registered yet. Sign in and register the first one: it appears here the
+            moment it exists.
+          </div>
+        )}
+        {services.length > 0 && (
+          <ul className="svc-list card">
+            {services.map((service) => (
+              <ServiceRow key={service.sellerId} service={service} />
+            ))}
+          </ul>
+        )}
+
+        <div className="agent-strip card panel">
+          <h2>For agents: consume this registry programmatically</h2>
+          <pre className="agent-snippet">{agentSnippet}</pre>
+          <p className="agent-note">
+            Full client helpers (channels, claims, trustlines) ship in{' '}
+            <code>@app/sdk-client</code>; the 402 challenge itself is self-describing, so any
+            HTTP client that can sign an XRPL transaction can pay.
+          </p>
+        </div>
+      </section>
+
+      <footer className="landing-foot">
+        <span>
+          facilitator <code>{GATEWAY_URL}</code>
+        </span>
+        <span>x402 on the XRP Ledger · every settlement source-tagged on chain</span>
+      </footer>
+    </div>
+  );
+}

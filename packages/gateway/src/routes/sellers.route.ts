@@ -9,7 +9,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { Asset, PaymentSetup, isClassicAddress } from '@app/shared';
-import { createSeller, getSeller, listSellersByOwner } from '../db/repositories.js';
+import {
+  createSeller,
+  getSeller,
+  listPublicSellers,
+  listSellersByOwner,
+} from '../db/repositories.js';
 import type { SellerRow } from '../db/types.js';
 import { isDecimalString } from '../util/decimal.js';
 import { requireAuth } from './authenticate.js';
@@ -73,5 +78,16 @@ export function registerSellerRoutes(app: FastifyInstance, deps: GatewayDeps): v
     const seller = await getSeller(deps.pool, request.params.id);
     if (!seller) return reply.code(404).send({ error: 'seller not found' });
     return reply.send(toSellerResponse(deps, seller));
+  });
+
+  // Public service catalog: every registered API, for agents (and the landing
+  // page) to discover what is payable. Registration is the act of publishing.
+  app.get('/catalog', async (_request, reply) => {
+    const sellers = await listPublicSellers(deps.pool);
+    return reply.send({
+      network: deps.env.xrplNetwork,
+      facilitator: deps.publicBaseUrl,
+      services: sellers.map((seller) => toSellerResponse(deps, seller)),
+    });
   });
 }

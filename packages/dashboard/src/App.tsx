@@ -6,6 +6,7 @@
 import { useCallback, useState } from 'react';
 import { clearSession, consumeUrlToken, loadSession, saveSession, type Session } from './auth.js';
 import { shortenAddress } from './format.js';
+import { Landing } from './components/Landing.js';
 import { Login } from './components/Login.js';
 import { SellerTab } from './components/SellerTab.js';
 import { BotTab } from './components/BotTab.js';
@@ -18,10 +19,12 @@ enum Tab {
 export function App(): JSX.Element {
   const [session, setSession] = useState<Session | null>(() => consumeUrlToken() ?? loadSession());
   const [tab, setTab] = useState<Tab>(Tab.APIS);
+  const [showLogin, setShowLogin] = useState(false);
 
   const authenticate = useCallback((next: Session) => {
     saveSession(next.token);
     setSession(next);
+    setShowLogin(false);
   }, []);
 
   const logout = useCallback(() => {
@@ -29,7 +32,13 @@ export function App(): JSX.Element {
     setSession(null);
   }, []);
 
-  if (!session) return <Login onAuthenticated={authenticate} />;
+  if (!session) {
+    return showLogin ? (
+      <Login onAuthenticated={authenticate} onBack={() => setShowLogin(false)} />
+    ) : (
+      <Landing onSignIn={() => setShowLogin(true)} />
+    );
+  }
 
   return (
     <div className="app">

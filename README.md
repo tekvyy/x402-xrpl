@@ -38,8 +38,8 @@ AI Agent / Client ──(x402fetch: handles 402, pays, retries)──► SELLER'
                                   │  • 402 challenge issuer (price, payTo, nonce)      │
                                   │  • /verify  /settle  (XRP + RLUSD)                 │
                                   │  • verifier: onchain Payment  OR  PayChan claim    │
-                                  │  • credit ledger per wallet (Postgres)             │
-                                  │  • nonce cache + rate limit + pubsub (Redis)       │
+                                  │  • credit ledger + nonces (Postgres)               │
+                                  │  • rate limit + auth challenges + pubsub (Redis)   │
                                   │  • usage logger  ──► dashboard (SSE)               │
                                   └──────────────────┬────────────────────────────────┘
                                                      ▼
@@ -155,6 +155,9 @@ Thin HTTP wrappers over the core x402 services:
 - `POST /challenge` — issue a single-use nonce for a registered seller.
 - `POST /settle` — verify + consume a payment (returns `SETTLED` / `REJECTED`).
 - `POST /verify` — verify without consuming.
+- `GET /catalog` — public service registry: every registered API (name, price,
+  modes, `channelDestination`) as JSON, so agents can discover what is payable.
+  The dashboard's public landing page renders the same registry for humans.
 
 Server middleware (`@app/sdk-server`) is pure delegation — it holds no XRPL or
 verify logic. Config is just `{ gatewayUrl, sellerId }`; pricing lives in the
@@ -173,7 +176,7 @@ Copy `.env.example` to `.env`. Key vars:
 | `SOURCE_TAG` | Stamped on every gateway-submitted XRPL tx |
 | `RLUSD_ISSUER` | RLUSD issuer classic address for the selected network |
 | `DATABASE_URL` | Postgres — durable ledger/usage/sellers |
-| `REDIS_URL` | Redis — nonce cache, rate limit, live-feed pub/sub |
+| `REDIS_URL` | Redis — rate limit, sign-in challenges, live-feed pub/sub |
 | `GATEWAY_PORT` | Gateway HTTP port (default `8402`) |
 | `DASHBOARD_ORIGIN` | Allowed dashboard origin (CORS) |
 | `ESCROW_ENABLED` | Custodial escrow-credits fallback (default `false`; the authentic path is PayChan) |
