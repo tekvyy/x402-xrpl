@@ -11,7 +11,6 @@
 import { Client, Wallet, dropsToXrp, xrpToDrops } from 'xrpl';
 import { loadWallet, ensureConnected, openChannel } from '@xrpl-x402/client';
 import type { ChannelHandle, X402Config } from '@xrpl-x402/client';
-import { SettleResult } from '@app/shared';
 import { createPaidFetchTool } from './tool.js';
 import { DEMO_ASSET } from './config.js';
 import type { AgentConfig } from './config.js';
@@ -97,9 +96,10 @@ export async function runAgentDemo(
 
   for (let call = 1; call <= config.meteredCalls; call += 1) {
     const result = await creditsTool.invoke({ path: resourcePath });
-    // The gateway attaches a settlement header to every paid response; only a
-    // tx hash means the call settled on chain instead of via off-ledger credits.
-    if (result.settlement?.txHash) {
+    // The gateway attaches a settlement header to every paid response; a
+    // non-empty `transaction` means the call settled on chain instead of via
+    // off-ledger credits (paychan settlements carry an empty transaction).
+    if (result.settlement?.transaction) {
       throw new Error(`call ${call} unexpectedly settled on-chain instead of via credits`);
     }
     console.log(
@@ -120,13 +120,15 @@ export async function runAgentDemo(
   const onchain = await onchainTool.invoke({ path: resourcePath });
 
   const settlement = onchain.settlement;
-  if (!settlement || settlement.result !== SettleResult.SETTLED) {
-    throw new Error(`pay-per-call did not settle: ${settlement?.reason ?? 'no settlement header'}`);
+  if (!settlement || !settlement.success) {
+    throw new Error(
+      `pay-per-call did not settle: ${settlement?.errorReason ?? 'no settlement header'}`,
+    );
   }
-  console.log(`Settled on chain: ${settlement.txHash}`);
+  console.log(`Settled on chain: ${settlement.transaction}`);
   if (settlement.explorerUrl) console.log(`Explorer: ${settlement.explorerUrl}`);
 
-  return { explorerUrl: settlement.explorerUrl, txHash: settlement.txHash };
+  return { explorerUrl: settlement.explorerUrl, txHash: settlement.transaction };
 }
 
 /** Connect a wallet + client from config, useful for the CLI entry point. */

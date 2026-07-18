@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { x402fetch, readSettlement } from '@xrpl-x402/client';
 import type { X402Config } from '@xrpl-x402/client';
-import type { PaymentResponse } from '@app/shared';
+import type { SettlementResponse } from '@app/shared';
 
 /** Arguments an agent supplies when invoking the paid-fetch tool. */
 export const PaidFetchArgsSchema = z.object({
@@ -24,7 +24,7 @@ export interface PaidFetchResult {
   status: number;
   body: unknown;
   /** Settlement details when the call was paid on-chain (pay-per-call). */
-  settlement?: PaymentResponse;
+  settlement?: SettlementResponse;
 }
 
 /** A minimal, MCP-compatible tool contract (name, description, schema, handler). */

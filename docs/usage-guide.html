@@ -249,8 +249,9 @@ off-ledger signed claim: no per-call on-chain wait.</p>
   <tr><td><code>GET /sellers/:id</code></td><td>none</td><td>Public seller info: price, payTo, channelDestination</td></tr>
   <tr><td><code>GET /catalog</code></td><td>none</td><td>Public service registry: every registered API as JSON, for agent discovery (rendered on the dashboard landing page for humans)</td></tr>
   <tr><td><code>POST /challenge</code></td><td>none · 600/min per IP</td><td>Facilitator: issue a single-use 402 challenge for (seller, resource)</td></tr>
-  <tr><td><code>POST /settle</code></td><td>none</td><td>Facilitator: verify + consume a payment (SETTLED / REJECTED)</td></tr>
-  <tr><td><code>POST /verify</code></td><td>none</td><td>Facilitator: verify without consuming</td></tr>
+  <tr><td><code>POST /settle</code></td><td>none</td><td>x402 facilitator settle: verify + consume a payment (spec SettlementResponse)</td></tr>
+  <tr><td><code>POST /verify</code></td><td>none</td><td>x402 facilitator verify without consuming (spec VerifyResponse)</td></tr>
+  <tr><td><code>GET /supported</code></td><td>none</td><td>x402 facilitator capability listing: supported (scheme, network) kinds</td></tr>
   <tr><td><code>POST /channels</code></td><td>none · 60/min per IP</td><td>Register a payment channel (destination, deposit, key are read from the ledger)</td></tr>
   <tr><td><code>POST /channels/:id/redeem</code></td><td>bearer, owner only</td><td>Redeem accumulated claims on chain; queues the seller payout</td></tr>
   <tr><td><code>GET /usage/summary · /top-endpoints · /by-wallet</code></td><td>bearer, owner only</td><td>Revenue, calls, active wallets, per-endpoint and per-wallet breakdowns</td></tr>

@@ -13,6 +13,38 @@ export enum PaymentMode {
 }
 
 /**
+ * x402 payment scheme identifiers — the on-wire names for the two payment
+ * mechanisms. `PaymentMode` remains the internal/database vocabulary; these are
+ * the spec-facing `scheme` strings carried in `accepts[]` and `X-PAYMENT`.
+ */
+export enum X402Scheme {
+  /** Exact-amount on-ledger XRPL Payment, proven by tx hash (pay-per-call). */
+  EXACT = 'exact',
+  /** Off-ledger XRPL payment-channel signed claim (prepaid credits). */
+  PAYCHAN = 'paychan',
+}
+
+const MODE_TO_SCHEME: Readonly<Record<PaymentMode, X402Scheme>> = Object.freeze({
+  [PaymentMode.PAY_PER_CALL]: X402Scheme.EXACT,
+  [PaymentMode.PREPAID_CREDITS]: X402Scheme.PAYCHAN,
+});
+
+const SCHEME_TO_MODE: Readonly<Record<X402Scheme, PaymentMode>> = Object.freeze({
+  [X402Scheme.EXACT]: PaymentMode.PAY_PER_CALL,
+  [X402Scheme.PAYCHAN]: PaymentMode.PREPAID_CREDITS,
+});
+
+/** The wire scheme identifier for an internal payment mode. */
+export function schemeForMode(mode: PaymentMode): X402Scheme {
+  return MODE_TO_SCHEME[mode];
+}
+
+/** The internal payment mode for a wire scheme identifier. */
+export function modeForScheme(scheme: X402Scheme): PaymentMode {
+  return SCHEME_TO_MODE[scheme];
+}
+
+/**
  * Which payment modes a seller accepts. Distinct from {@link PaymentMode}:
  * every individual payment settles in exactly one mode, but a seller's setup
  * may allow either. Credits setups require XRP pricing (PayChan is XRP-native).

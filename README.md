@@ -15,15 +15,26 @@ to monetize an API in minutes with zero payment-processor onboarding.
 Every settled XRPL transaction carries a configurable **source tag** so on-chain
 activity counts toward the XRPL Commons leaderboard.
 
-## How it maps to real x402 on Base
+## x402 v1 spec compliance
 
-| Base x402 primitive | XRPL port |
+Every wire message follows the [x402 v1 specification](https://github.com/coinbase/x402/blob/main/specs/x402-specification-v1.md)
+exactly. XRPL is carried as two payment schemes on the `xrpl` / `xrpl-testnet`
+networks:
+
+| Spec primitive | This implementation |
 | --- | --- |
-| `402` response with `accepts[]` payment requirements | Same `402` + `accepts[]` challenge issued by the gateway |
-| `X-PAYMENT` request header (base64 signed payload) | Same header; payload is an XRPL tx hash (pay-per-call) or a signed PayChan claim (credits) |
-| EIP-3009 `transferWithAuthorization` off-chain auth | **PayChan signed claim** — off-ledger, monotonic, redeemed later |
-| Coinbase Facilitator `/verify` + `/settle` | **The gateway is the facilitator**: `/verify` + `/settle` |
-| `X-PAYMENT-RESPONSE` header (settlement tx hash) | Same header with XRPL tx hash + explorer link |
+| `402` body: `{ x402Version, error, accepts[] }` | Same, with all required `PaymentRequirements` fields (`scheme`, `network`, `maxAmountRequired`, `asset`, `payTo`, `resource`, `description`, `maxTimeoutSeconds`); the challenge nonce and RLUSD issuer ride in `extra` |
+| `scheme` | `exact` = direct XRPL `Payment` proven by tx hash (pay-per-call); `paychan` = off-ledger signed PayChan claim (prepaid credits, the XRPL-native analog of EIP-3009 authorizations) |
+| `network` | `xrpl` (mainnet) / `xrpl-testnet` (CAIP-2 ids `xrpl:0` / `xrpl:1` reserved for the v2 transport) |
+| `X-PAYMENT` header | Spec envelope `{ x402Version, scheme, network, payload }`, base64 JSON; the `payload` object is scheme-defined |
+| `X-PAYMENT-RESPONSE` header | Spec `SettlementResponse` `{ success, errorReason?, transaction, network, payer }` (+ a non-spec `explorerUrl` convenience field) |
+| Facilitator `POST /verify`, `POST /settle` | Spec bodies `{ x402Version, paymentPayload, paymentRequirements }`; spec responses `{ isValid, invalidReason?, payer }` and `{ success, errorReason?, transaction, network, payer }` |
+| Facilitator `GET /supported` | `{ kinds: [{ x402Version, scheme, network }] }` for both schemes on the configured network |
+
+One non-spec convenience endpoint remains: `POST /challenge`, which the server
+middleware uses to have the gateway issue nonce-bound challenges (replay
+protection is anchored in the gateway's single-use nonce ledger). Spec clients
+never call it — they only ever see spec-shaped messages.
 
 ## Architecture
 
@@ -152,9 +163,15 @@ Two tabs:
 
 Thin HTTP wrappers over the core x402 services:
 
-- `POST /challenge` — issue a single-use nonce for a registered seller.
-- `POST /settle` — verify + consume a payment (returns `SETTLED` / `REJECTED`).
-- `POST /verify` — verify without consuming.
+- `POST /challenge` — issue a single-use nonce for a registered seller
+  (non-spec; used by the server middleware).
+- `POST /settle` — spec facilitator settle: verify + consume a payment; body
+  `{ x402Version, paymentPayload, paymentRequirements }`, response
+  `{ success, errorReason?, transaction, network, payer }`.
+- `POST /verify` — spec facilitator verify (no consume); response
+  `{ isValid, invalidReason?, payer }`.
+- `GET /supported` — spec facilitator capability listing:
+  `{ kinds: [{ x402Version, scheme, network }] }`.
 - `GET /catalog` — public service registry: every registered API (name, price,
   modes, `channelDestination`) as JSON, so agents can discover what is payable.
   The dashboard's public landing page renders the same registry for humans.

@@ -135,6 +135,27 @@ export interface ChannelPayoutRow {
   paid_at: Date | null;
 }
 
+/** One gateway HTTP request, captured for the admin audit trail. */
+export interface AuditLogRow {
+  id: string;
+  /** Fastify per-request id, for correlating with process logs. */
+  request_id: string;
+  method: string;
+  /** Matched route pattern (e.g. /sellers/:id); null when no route matched. */
+  route: string | null;
+  /** Actual request path, query string stripped. */
+  path: string;
+  status_code: number;
+  duration_ms: number;
+  /** Authenticated caller's XRPL address; null for anonymous requests. */
+  actor_address: string | null;
+  /** Seller the request concerned, when resolvable from the request. */
+  seller_id: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: Date;
+}
+
 export interface EscrowCreditRow {
   id: string;
   seller_id: string;

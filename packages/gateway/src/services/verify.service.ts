@@ -5,7 +5,7 @@
  * `/verify` facilitator endpoint (US-005) without duplication.
  */
 import { Asset, CHANNEL_REDEEM_BUFFER_SEC } from '@app/shared';
-import type { PayPerCallPayload, PrepaidCreditsPayload } from '@app/shared';
+import type { ExactSchemePayload, PaychanSchemePayload } from '@app/shared';
 import { dropsToXrp, verifyPaymentChannelClaim, xrpToDrops } from 'xrpl';
 import { decimalGte, isDecimalString } from '../util/decimal.js';
 import type { ChannelRow } from '../db/types.js';
@@ -122,7 +122,7 @@ function memoContainsNonce(tx: RawTx, nonce: string): boolean {
  */
 export async function verifyPayPerCall(
   xrpl: XrplService,
-  payload: PayPerCallPayload,
+  payload: ExactSchemePayload,
   ctx: VerifyContext,
 ): Promise<VerifyResult> {
   if (payload.asset !== ctx.requiredAsset) return fail('asset does not match the challenge');
@@ -198,7 +198,7 @@ export type PrepaidVerifyResult = PrepaidVerifyOk | VerifyErr;
  * call's price. XRPL PayChan is XRP-native, so only XRP claims are accepted.
  */
 export function verifyPrepaidClaim(
-  payload: PrepaidCreditsPayload,
+  payload: PaychanSchemePayload,
   channel: ChannelRow,
   ctx: VerifyContext,
   nowMs: number = Date.now(),

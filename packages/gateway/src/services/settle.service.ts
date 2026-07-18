@@ -13,10 +13,19 @@ import {
   ChannelStatus,
   PaymentMode,
   SettleResult,
+  X402ErrorCode,
+  X402Scheme,
   explorerTxUrl,
+  modeForScheme,
   setupAllowsMode,
+  x402NetworkId,
 } from '@app/shared';
-import type { AppEnv, PaymentPayload, PrepaidCreditsPayload } from '@app/shared';
+import type {
+  AppEnv,
+  PaymentPayload,
+  PaymentRequirements,
+  PaychanSchemePayload,
+} from '@app/shared';
 import {
   applyChannelClaim,
   getChallengeByNonce,
@@ -50,6 +59,8 @@ export interface SettleOutcome {
   challenge?: ChallengeRow;
   /** Delivered amount in the asset's human unit, when settled/verified. */
   amount?: string;
+  /** Payer's XRPL classic address, when known. */
+  payer?: string;
 }
 
 const reject = (reason: string): SettleOutcome => ({ result: SettleResult.REJECTED, reason });
@@ -70,23 +81,48 @@ interface LoadedChallenge {
 }
 
 /**
- * Common prelude for verify and settle: resolve the challenge + seller for a
- * payload, enforce ownership and expiry, and build the verify context. Returns
- * a {@link SettleOutcome} (REJECTED) instead when any precondition fails.
+ * Common prelude for verify and settle: validate the spec envelope, resolve
+ * the challenge + seller for the payload's nonce, check the caller-supplied
+ * `paymentRequirements` against what this gateway actually issued, enforce
+ * expiry, and build the verify context. Returns a {@link SettleOutcome}
+ * (REJECTED) instead when any precondition fails.
  */
 async function loadChallenge(
   deps: SettleDeps,
-  payload: Pick<PaymentPayload, 'nonce' | 'mode'>,
-  sellerId: string,
+  payment: PaymentPayload,
+  requirements: PaymentRequirements,
 ): Promise<LoadedChallenge | SettleOutcome> {
-  const challenge = await getChallengeByNonce(deps.pool, payload.nonce);
-  if (!challenge) return reject('unknown or unissued nonce');
-  if (challenge.seller_id !== sellerId) return reject('nonce does not belong to this seller');
+  const network = x402NetworkId(deps.env.xrplNetwork);
+  if (payment.network !== network || requirements.network !== network) {
+    return reject(X402ErrorCode.INVALID_NETWORK);
+  }
+  if (requirements.scheme !== payment.scheme) {
+    return reject(X402ErrorCode.INVALID_PAYMENT_REQUIREMENTS);
+  }
 
-  const seller = await getSeller(deps.pool, sellerId);
+  const challenge = await getChallengeByNonce(deps.pool, payment.payload.nonce);
+  if (!challenge) return reject('unknown or unissued nonce');
+  if (requirements.extra.nonce !== challenge.nonce) {
+    return reject('requirements nonce does not match the payment nonce');
+  }
+
+  const seller = await getSeller(deps.pool, challenge.seller_id);
   if (!seller) return reject('seller not found');
-  if (!setupAllowsMode(seller.payment_mode, payload.mode)) {
-    return reject(`seller does not accept ${payload.mode} payments`);
+  if (!setupAllowsMode(seller.payment_mode, modeForScheme(payment.scheme))) {
+    return reject(`seller does not accept ${payment.scheme} payments`);
+  }
+
+  // The supplied requirements must be the ones this gateway issued for the
+  // challenge — a caller must not be able to settle against altered terms.
+  const wireAmount =
+    challenge.asset === Asset.XRP ? xrpToDrops(challenge.amount) : challenge.amount;
+  if (
+    requirements.asset !== challenge.asset ||
+    requirements.maxAmountRequired !== wireAmount ||
+    requirements.payTo !== seller.pay_to_address ||
+    requirements.resource !== challenge.resource
+  ) {
+    return reject(X402ErrorCode.INVALID_PAYMENT_REQUIREMENTS);
   }
 
   if (challenge.expires_at.getTime() <= Date.now()) {
@@ -110,27 +146,31 @@ async function loadChallenge(
 /** Verify a payment against its challenge without consuming it. */
 export async function verify(
   deps: SettleDeps,
-  payload: PaymentPayload,
-  sellerId: string,
+  payment: PaymentPayload,
+  requirements: PaymentRequirements,
 ): Promise<SettleOutcome> {
-  const loaded = await loadChallenge(deps, payload, sellerId);
+  const loaded = await loadChallenge(deps, payment, requirements);
   if ('result' in loaded) return loaded;
 
-  if (payload.mode === PaymentMode.PREPAID_CREDITS) {
-    const channel = await getChannelByChannelId(deps.pool, payload.channelId);
+  if (payment.scheme === X402Scheme.PAYCHAN) {
+    const claim = payment.payload;
+    const channel = await getChannelByChannelId(deps.pool, claim.channelId);
     if (!channel) return reject('unknown channel');
-    if (channel.seller_id !== sellerId) return reject('channel does not belong to this seller');
-    const result = verifyPrepaidClaim(payload, channel, loaded.ctx);
+    if (channel.seller_id !== loaded.seller.id) {
+      return reject('channel does not belong to this seller');
+    }
+    const result = verifyPrepaidClaim(claim, channel, loaded.ctx);
     if (!result.ok) return reject(result.reason);
     return {
       result: SettleResult.VERIFIED,
       seller: loaded.seller,
       challenge: loaded.challenge,
       amount: result.chargeHuman,
+      payer: claim.payer,
     };
   }
 
-  const result = await verifyPayPerCall(deps.xrpl, payload, loaded.ctx);
+  const result = await verifyPayPerCall(deps.xrpl, payment.payload, loaded.ctx);
   if (!result.ok) return reject(result.reason);
 
   return {
@@ -140,6 +180,7 @@ export async function verify(
     seller: loaded.seller,
     challenge: loaded.challenge,
     amount: result.deliveredHuman,
+    payer: result.payer,
   };
 }
 
@@ -150,14 +191,14 @@ export async function verify(
  */
 export async function settle(
   deps: SettleDeps,
-  payload: PaymentPayload,
-  sellerId: string,
+  payment: PaymentPayload,
+  requirements: PaymentRequirements,
 ): Promise<SettleOutcome> {
-  const loaded = await loadChallenge(deps, payload, sellerId);
+  const loaded = await loadChallenge(deps, payment, requirements);
   if ('result' in loaded) return loaded;
 
-  if (payload.mode === PaymentMode.PREPAID_CREDITS) {
-    return settlePrepaidCredits(deps, payload, loaded);
+  if (payment.scheme === X402Scheme.PAYCHAN) {
+    return settlePrepaidCredits(deps, payment.payload, loaded);
   }
 
   const { challenge, seller } = loaded;
@@ -166,7 +207,7 @@ export async function settle(
     return reject('nonce has already been used');
   }
 
-  const result = await verifyPayPerCall(deps.xrpl, payload, loaded.ctx);
+  const result = await verifyPayPerCall(deps.xrpl, payment.payload, loaded.ctx);
   if (!result.ok) return reject(result.reason);
 
   const client = await deps.pool.connect();
@@ -222,6 +263,7 @@ export async function settle(
     seller,
     challenge,
     amount: result.deliveredHuman,
+    payer: result.payer,
   };
 }
 
@@ -233,7 +275,7 @@ export async function settle(
  */
 async function settlePrepaidCredits(
   deps: SettleDeps,
-  payload: PrepaidCreditsPayload,
+  payload: PaychanSchemePayload,
   loaded: LoadedChallenge,
 ): Promise<SettleOutcome> {
   const { challenge, seller, ctx } = loaded;
@@ -350,6 +392,7 @@ async function settlePrepaidCredits(
     seller,
     challenge,
     amount: result.chargeHuman,
+    payer: payload.payer,
   };
 }
 

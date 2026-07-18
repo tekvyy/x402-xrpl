@@ -1,20 +1,29 @@
 /**
- * Facilitator HTTP surface (US-007). These endpoints let the `sdk-server`
- * middleware price the seller's *own* routes without re-implementing any x402
- * logic: the middleware asks the gateway to issue a challenge, then hands the
- * payment back for settlement. They mirror Coinbase x402's stateless
- * facilitator, but challenge issuance is delegated too because replay
- * protection is anchored in the gateway's single-use nonce ledger.
+ * Facilitator HTTP surface (US-007). The spec endpoints follow the x402 v1
+ * facilitator interface exactly; `/challenge` is a non-spec convenience that
+ * lets the `sdk-server` middleware price the seller's *own* routes without
+ * re-implementing any x402 logic. Challenge issuance is delegated here because
+ * replay protection is anchored in the gateway's single-use nonce ledger.
  *
  *   POST /challenge  → issue a single-use 402 challenge for (seller, resource)
- *   POST /settle     → verify + settle a payment, consuming the challenge
+ *                      (non-spec; returns a full PaymentRequirementsResponse)
+ *   POST /settle     → x402 facilitator settle: verify + settle a payment,
+ *                      consuming the challenge
+ *   GET  /supported  → x402 facilitator capability listing
  *
- * `POST /verify` (no-consume) already lives in the usage route.
+ * `POST /verify` (no-consume) lives in the usage route.
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PaymentPayloadSchema, SettleResult } from '@app/shared';
-import type { PaymentResponse } from '@app/shared';
+import {
+  FacilitatorRequestSchema,
+  SettleResult,
+  X402Scheme,
+  X402_VERSION,
+  X402ErrorCode,
+  x402NetworkId,
+} from '@app/shared';
+import type { SettlementResponse, SupportedResponse } from '@app/shared';
 import { getSeller } from '../db/repositories.js';
 import { issueChallenge } from '../services/challenge.service.js';
 import { settle } from '../services/settle.service.js';
@@ -29,12 +38,6 @@ const ChallengeBodySchema = z.object({
   resource: z.string().min(1).max(512),
 });
 
-/** Settle a payment presented by the middleware on a client's retry. */
-const SettleBodySchema = z.object({
-  sellerId: z.string().uuid(),
-  payment: PaymentPayloadSchema,
-});
-
 export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDeps): void {
   const limited = { preHandler: rateLimitByIp(deps.redis, CHALLENGE_RATE_LIMIT) };
   app.post('/challenge', limited, async (request, reply) => {
@@ -47,20 +50,45 @@ export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDep
     if (!seller) return reply.code(404).send({ error: 'unknown seller' });
 
     const requirements = await issueChallenge(deps, seller, parsed.data.resource);
-    return reply.send({ x402Version: 1, accepts: requirements });
+    // The middleware relays this body verbatim as its 402 response, so it is a
+    // complete spec `PaymentRequirementsResponse`, `error` included.
+    return reply.send({
+      x402Version: X402_VERSION,
+      error: 'X-PAYMENT header is required',
+      accepts: requirements,
+    });
   });
 
   app.post('/settle', async (request, reply) => {
-    const parsed = SettleBodySchema.safeParse(request.body);
+    const parsed = FacilitatorRequestSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: 'invalid settle request', issues: parsed.error.issues });
+      return reply
+        .code(400)
+        .send({ error: X402ErrorCode.INVALID_PAYLOAD, issues: parsed.error.issues });
     }
 
-    const outcome = await settle(deps, parsed.data.payment, parsed.data.sellerId);
-    const body: PaymentResponse =
-      outcome.result === SettleResult.SETTLED
-        ? { result: SettleResult.SETTLED, txHash: outcome.txHash, explorerUrl: outcome.explorerUrl }
-        : { result: SettleResult.REJECTED, reason: outcome.reason };
+    const { paymentPayload, paymentRequirements } = parsed.data;
+    const outcome = await settle(deps, paymentPayload, paymentRequirements);
+    const settled = outcome.result === SettleResult.SETTLED;
+    const body: SettlementResponse = {
+      success: settled,
+      ...(settled ? {} : { errorReason: outcome.reason ?? X402ErrorCode.UNEXPECTED_SETTLE_ERROR }),
+      transaction: outcome.txHash ?? '',
+      network: x402NetworkId(deps.env.xrplNetwork),
+      payer: outcome.payer ?? paymentPayload.payload.payer,
+      ...(outcome.explorerUrl ? { explorerUrl: outcome.explorerUrl } : {}),
+    };
+    return reply.send(body);
+  });
+
+  app.get('/supported', async (_request, reply) => {
+    const network = x402NetworkId(deps.env.xrplNetwork);
+    const body: SupportedResponse = {
+      kinds: [
+        { x402Version: X402_VERSION, scheme: X402Scheme.EXACT, network },
+        { x402Version: X402_VERSION, scheme: X402Scheme.PAYCHAN, network },
+      ],
+    };
     return reply.send(body);
   });
 }

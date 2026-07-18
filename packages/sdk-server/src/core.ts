@@ -3,17 +3,33 @@
  * Fastify adapters call {@link decide} and translate its verdict into their own
  * response objects — the x402 protocol logic lives here exactly once.
  *
- *   no X-PAYMENT  → ask the facilitator for a challenge, answer 402
- *   X-PAYMENT     → hand it to the facilitator's /settle; on SETTLED, let the
- *                   route run and attach X-PAYMENT-RESPONSE; else answer 402
+ *   no X-PAYMENT  → ask the facilitator for a challenge, answer 402 with the
+ *                   spec `PaymentRequirementsResponse`
+ *   X-PAYMENT     → decode the spec envelope, hand it with its issued
+ *                   `PaymentRequirements` to the facilitator's /settle; on
+ *                   success, let the route run and attach X-PAYMENT-RESPONSE;
+ *                   else answer 402
+ *
+ * The facilitator `/settle` body is the spec's `{ x402Version, paymentPayload,
+ * paymentRequirements }`, so the middleware remembers the requirements it
+ * issued per challenge nonce until they expire or settle. A cache miss (e.g.
+ * process restart) simply re-challenges the client.
  */
 import {
-  SettleResult,
+  PaymentRequirementsResponseSchema,
+  SettlementResponseSchema,
+  X402ErrorCode,
   X402Header,
-  encodeHeaderPayload,
+  X402_VERSION,
   parsePaymentHeader,
+  encodeHeaderPayload,
 } from '@app/shared';
-import type { PaymentPayload, PaymentResponse } from '@app/shared';
+import type {
+  PaymentPayload,
+  PaymentRequirements,
+  PaymentRequirementsResponse,
+  SettlementResponse,
+} from '@app/shared';
 import type { X402MiddlewareOptions } from './types.js';
 
 /** A framework-agnostic instruction for the adapter to carry out. */
@@ -28,10 +44,29 @@ export type X402Decision =
       readonly paymentResponseHeader?: string;
     };
 
-/** The 402 challenge body issued by the gateway (`accepts[]` requirements). */
-interface ChallengeResponse {
-  x402Version: number;
-  accepts: unknown;
+/**
+ * Requirements issued per challenge nonce, kept until settled or expired so the
+ * paid retry can be settled with the exact `PaymentRequirements` the client was
+ * shown. Keyed by nonce (UUIDs), so one process-wide map is safe even with
+ * several middleware instances.
+ */
+const issuedChallenges = new Map<string, { accepts: PaymentRequirements[]; expiresAtMs: number }>();
+
+function pruneExpiredChallenges(nowMs: number): void {
+  for (const [nonce, entry] of issuedChallenges) {
+    if (entry.expiresAtMs <= nowMs) issuedChallenges.delete(nonce);
+  }
+}
+
+function rememberChallenge(challenge: PaymentRequirementsResponse): void {
+  const nowMs = Date.now();
+  pruneExpiredChallenges(nowMs);
+  const [first] = challenge.accepts;
+  if (!first) return;
+  issuedChallenges.set(first.extra.nonce, {
+    accepts: challenge.accepts,
+    expiresAtMs: nowMs + first.maxTimeoutSeconds * 1000,
+  });
 }
 
 function resolveFetch(options: X402MiddlewareOptions): typeof fetch {
@@ -55,7 +90,7 @@ const FACILITATOR_TIMEOUT_MS = 10_000;
 async function requestChallenge(
   options: X402MiddlewareOptions,
   resource: string,
-): Promise<ChallengeResponse> {
+): Promise<PaymentRequirementsResponse> {
   const response = await resolveFetch(options)(`${base(options)}/challenge`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -65,24 +100,43 @@ async function requestChallenge(
   if (!response.ok) {
     throw new Error(`facilitator challenge failed (${response.status})`);
   }
-  return (await response.json()) as ChallengeResponse;
+  const challenge = PaymentRequirementsResponseSchema.parse(await response.json());
+  rememberChallenge(challenge);
+  return challenge;
 }
 
-/** Hand a decoded payment to the facilitator's `/settle` and return its verdict. */
+/** Hand a payment + its issued requirements to `/settle`; return the verdict. */
 async function settlePayment(
   options: X402MiddlewareOptions,
-  payment: PaymentPayload,
-): Promise<PaymentResponse> {
+  paymentPayload: PaymentPayload,
+  paymentRequirements: PaymentRequirements,
+): Promise<SettlementResponse> {
   const response = await resolveFetch(options)(`${base(options)}/settle`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ sellerId: options.sellerId, payment }),
+    body: JSON.stringify({ x402Version: X402_VERSION, paymentPayload, paymentRequirements }),
     signal: AbortSignal.timeout(FACILITATOR_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`facilitator settle failed (${response.status})`);
   }
-  return (await response.json()) as PaymentResponse;
+  return SettlementResponseSchema.parse(await response.json());
+}
+
+/** Issue a fresh challenge and answer 402 with `error` in the spec body. */
+async function respondWithChallenge(
+  options: X402MiddlewareOptions,
+  resource: string,
+  error: string,
+  paymentResponseHeader?: string,
+): Promise<X402Decision> {
+  const challenge = await requestChallenge(options, resource);
+  return {
+    kind: 'respond',
+    status: 402,
+    paymentResponseHeader,
+    body: { ...challenge, error },
+  };
 }
 
 /**
@@ -97,30 +151,42 @@ export async function decide(
   const resource = (options.resource ?? ((path) => path))(requestPath);
 
   if (!paymentHeader || paymentHeader.length === 0) {
-    const challenge = await requestChallenge(options, resource);
-    return { kind: 'respond', status: 402, body: challenge };
+    return respondWithChallenge(options, resource, 'X-PAYMENT header is required');
   }
 
   let payment: PaymentPayload;
   try {
     payment = parsePaymentHeader(paymentHeader);
   } catch {
-    return { kind: 'respond', status: 400, body: { error: 'malformed X-PAYMENT header' } };
+    return {
+      kind: 'respond',
+      status: 400,
+      body: { x402Version: X402_VERSION, error: X402ErrorCode.INVALID_PAYLOAD },
+    };
   }
 
-  const outcome = await settlePayment(options, payment);
+  const issued = issuedChallenges.get(payment.payload.nonce);
+  const requirements = issued?.accepts.find((entry) => entry.scheme === payment.scheme);
+  if (!requirements) {
+    // Unknown or expired nonce (or a scheme this challenge never offered):
+    // re-challenge rather than settle against requirements we cannot attest to.
+    return respondWithChallenge(options, resource, 'unknown or expired challenge; pay again');
+  }
+
+  const outcome = await settlePayment(options, payment, requirements);
   const header = encodeHeaderPayload(outcome);
 
-  if (outcome.result === SettleResult.SETTLED) {
+  if (outcome.success) {
+    issuedChallenges.delete(payment.payload.nonce);
     return { kind: 'proceed', paymentResponseHeader: header };
   }
 
-  return {
-    kind: 'respond',
-    status: 402,
-    paymentResponseHeader: header,
-    body: { x402Version: 1, error: outcome.reason ?? 'payment rejected' },
-  };
+  return respondWithChallenge(
+    options,
+    resource,
+    outcome.errorReason ?? 'payment rejected',
+    header,
+  );
 }
 
 /** The response header carrying the encoded settlement outcome. */

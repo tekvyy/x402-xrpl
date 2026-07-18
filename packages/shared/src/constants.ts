@@ -22,6 +22,34 @@ export const XRPL_ENDPOINTS: Readonly<Record<XrplNetwork, string>> = Object.free
   [XrplNetwork.TESTNET]: 'wss://s.altnet.rippletest.net:51233',
 });
 
+/**
+ * x402 v1 network identifiers for XRPL, following the spec's naming style
+ * (`base` / `base-sepolia`). These are the `network` values carried in
+ * `accepts[]`, `X-PAYMENT`, and `X-PAYMENT-RESPONSE`.
+ */
+export const X402_NETWORKS = ['xrpl', 'xrpl-testnet'] as const;
+export type X402Network = (typeof X402_NETWORKS)[number];
+
+const X402_NETWORK_IDS: Readonly<Record<XrplNetwork, X402Network>> = Object.freeze({
+  [XrplNetwork.MAINNET]: 'xrpl',
+  [XrplNetwork.TESTNET]: 'xrpl-testnet',
+});
+
+/** The x402 wire `network` identifier for an XRPL network selector. */
+export function x402NetworkId(network: XrplNetwork): X402Network {
+  return X402_NETWORK_IDS[network];
+}
+
+/**
+ * CAIP-2 chain identifiers per network, for the future x402 v2 transport
+ * (v2 replaces the v1 network names above with CAIP-2 ids). Unused on the v1
+ * wire; kept here so the mapping lives in one place when v2 lands.
+ */
+export const X402_CAIP2_IDS: Readonly<Record<XrplNetwork, string>> = Object.freeze({
+  [XrplNetwork.MAINNET]: 'xrpl:0',
+  [XrplNetwork.TESTNET]: 'xrpl:1',
+});
+
 /** Explorer base URLs per network; append a tx hash to link a settlement. */
 export const XRPL_EXPLORER_TX_URL: Readonly<Record<XrplNetwork, string>> = Object.freeze({
   [XrplNetwork.MAINNET]: 'https://livenet.xrpl.org/transactions/',

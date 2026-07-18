@@ -1,5 +1,5 @@
 /**
- * Periodic background maintenance. One sweep, four duties:
+ * Periodic background maintenance. One sweep, five duties:
  *
  *  1. Reconcile channels stranded in SETTLING (crash or ambiguous submit
  *     between the on-chain claim and the watermark write) — the ledger is the
@@ -11,12 +11,14 @@
  *     that now needs an operator (e.g. the seller's address cannot receive).
  *  4. Prune expired, never-consumed challenge rows so unauthenticated
  *     challenge issuance cannot grow Postgres without bound.
+ *  5. Prune audit-log rows past their retention window, for the same reason.
  *
  * Every duty is idempotent and guarded by atomic status transitions, so an
  * overlapping or repeated sweep is harmless.
  */
 import {
   deleteExpiredChallenges,
+  deleteOldAuditLogs,
   listExhaustedChannelPayouts,
   listPendingChannelPayouts,
   listStaleSettlingChannels,
@@ -29,6 +31,7 @@ import {
 } from './channel.service.js';
 import type { RedeemDeps } from './channel.service.js';
 import {
+  AUDIT_LOG_RETENTION_MS,
   CHALLENGE_RETENTION_MS,
   MAINTENANCE_INTERVAL_MS,
   MAX_PAYOUT_ATTEMPTS,
@@ -44,6 +47,7 @@ export async function runMaintenance(deps: RedeemDeps): Promise<void> {
   await retryPendingPayouts(deps);
   await reportExhaustedPayouts(deps);
   await pruneExpiredChallenges(deps);
+  await pruneOldAuditLogs(deps);
 }
 
 async function reconcileStrandedChannels(deps: RedeemDeps): Promise<void> {
@@ -117,6 +121,16 @@ async function pruneExpiredChallenges(deps: RedeemDeps): Promise<void> {
     if (removed > 0) console.info(`[maintenance] pruned ${removed} expired challenges`);
   } catch (err) {
     console.error('[maintenance] challenge prune failed', err);
+  }
+}
+
+async function pruneOldAuditLogs(deps: RedeemDeps): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - AUDIT_LOG_RETENTION_MS);
+    const removed = await deleteOldAuditLogs(deps.pool, cutoff);
+    if (removed > 0) console.info(`[maintenance] pruned ${removed} old audit logs`);
+  } catch (err) {
+    console.error('[maintenance] audit-log prune failed', err);
   }
 }
 

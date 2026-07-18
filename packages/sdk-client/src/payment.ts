@@ -20,19 +20,20 @@ export interface PayChallengeParams {
 }
 
 /**
- * Build the on-ledger `Amount` for a challenge. The wire `amount` already uses
- * the x402 convention — drops for XRP, human units for RLUSD — so it maps
- * directly onto the XRPL representation with no further conversion.
+ * Build the on-ledger `Amount` for a challenge. The wire `maxAmountRequired`
+ * already uses the x402 atomic-unit convention (drops for XRP, decimal units
+ * for RLUSD), so it maps directly onto the XRPL representation with no further
+ * conversion.
  */
 function buildAmount(requirements: PaymentRequirements): Amount {
-  if (requirements.asset === Asset.XRP) return requirements.amount;
-  if (!requirements.issuer) {
+  if (requirements.asset === Asset.XRP) return requirements.maxAmountRequired;
+  if (!requirements.extra.issuer) {
     throw new Error('RLUSD requirement is missing the issuer address');
   }
   return {
     currency: currencyToHex(RLUSD_CURRENCY_CODE),
-    issuer: requirements.issuer,
-    value: requirements.amount,
+    issuer: requirements.extra.issuer,
+    value: requirements.maxAmountRequired,
   };
 }
 
@@ -56,7 +57,7 @@ export async function payChallenge(params: PayChallengeParams): Promise<string> 
     Destination: requirements.payTo,
     Amount: buildAmount(requirements),
     SourceTag: sourceTag,
-    Memos: [{ Memo: { MemoData: toMemoData(requirements.nonce) } }],
+    Memos: [{ Memo: { MemoData: toMemoData(requirements.extra.nonce) } }],
   };
 
   const prepared = await client.autofill(tx);

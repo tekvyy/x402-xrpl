@@ -9,8 +9,8 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { PaymentPayloadSchema, SettleResult } from '@app/shared';
-import type { PaymentResponse } from '@app/shared';
+import { FacilitatorRequestSchema, SettleResult, X402ErrorCode } from '@app/shared';
+import type { VerifyResponse } from '@app/shared';
 import {
   getSeller,
   getTopEndpoints,
@@ -22,12 +22,6 @@ import { usageChannelName } from '../services/usage.service.js';
 import { verifyToken } from '../services/auth.service.js';
 import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
-
-/** Facilitator verify request: which seller + the payment payload to check. */
-const VerifyBodySchema = z.object({
-  sellerId: z.string().uuid(),
-  payment: PaymentPayloadSchema,
-});
 
 const SellerQuerySchema = z.object({ sellerId: z.string().uuid() });
 
@@ -74,16 +68,21 @@ export function registerUsageRoutes(app: FastifyInstance, deps: GatewayDeps): vo
   const auth = requireAuth(deps);
 
   app.post('/verify', async (request, reply) => {
-    const parsed = VerifyBodySchema.safeParse(request.body);
+    const parsed = FacilitatorRequestSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: 'invalid verify request', issues: parsed.error.issues });
+      return reply
+        .code(400)
+        .send({ error: X402ErrorCode.INVALID_PAYLOAD, issues: parsed.error.issues });
     }
 
-    const outcome = await verify(deps, parsed.data.payment, parsed.data.sellerId);
-    const body: PaymentResponse =
-      outcome.result === SettleResult.VERIFIED
-        ? { result: SettleResult.VERIFIED, txHash: outcome.txHash, explorerUrl: outcome.explorerUrl }
-        : { result: SettleResult.REJECTED, reason: outcome.reason };
+    const { paymentPayload, paymentRequirements } = parsed.data;
+    const outcome = await verify(deps, paymentPayload, paymentRequirements);
+    const isValid = outcome.result === SettleResult.VERIFIED;
+    const body: VerifyResponse = {
+      isValid,
+      ...(isValid ? {} : { invalidReason: outcome.reason ?? X402ErrorCode.UNEXPECTED_VERIFY_ERROR }),
+      payer: outcome.payer ?? paymentPayload.payload.payer,
+    };
     return reply.send(body);
   });
 

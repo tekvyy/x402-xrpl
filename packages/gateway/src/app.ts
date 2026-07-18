@@ -6,12 +6,14 @@
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import { registerAdminRoutes } from './routes/admin.route.js';
 import { registerAuthRoutes } from './routes/auth.route.js';
 import { registerBotRoutes } from './routes/bots.route.js';
 import { registerSellerRoutes } from './routes/sellers.route.js';
 import { registerChannelRoutes } from './routes/channels.route.js';
 import { registerUsageRoutes } from './routes/usage.route.js';
 import { registerFacilitatorRoutes } from './routes/facilitator.route.js';
+import { recordRequestAudit } from './services/audit.service.js';
 import type { GatewayDeps } from './deps.js';
 
 export async function buildApp(deps: GatewayDeps): Promise<FastifyInstance> {
@@ -35,8 +37,18 @@ export async function buildApp(deps: GatewayDeps): Promise<FastifyInstance> {
     return reply.code(status).send({ error: error.message });
   });
 
+  // Admin audit trail: capture every finished request (fire-and-forget insert,
+  // so auditing can never slow or fail the request). Runs after the response is
+  // sent; hijacked replies (the SSE stream) never reach onResponse and are not
+  // audited.
+  app.addHook('onResponse', (request, reply, done) => {
+    recordRequestAudit(deps, request, reply);
+    done();
+  });
+
   app.get('/health', async () => ({ status: 'ok' }));
 
+  registerAdminRoutes(app, deps);
   registerAuthRoutes(app, deps);
   registerBotRoutes(app, deps);
   registerSellerRoutes(app, deps);

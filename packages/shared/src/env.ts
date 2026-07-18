@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import { XrplNetwork } from './enums.js';
-import { XRPL_ENDPOINTS } from './constants.js';
+import { isClassicAddress, XRPL_ENDPOINTS } from './constants.js';
 
 const EnvSchema = z.object({
   XRPL_NETWORK: z.nativeEnum(XrplNetwork),
@@ -37,6 +37,21 @@ const EnvSchema = z.object({
     .enum(['true', 'false', '1', '0'])
     .optional()
     .transform((value) => value === 'true' || value === '1'),
+  // Optional: comma-separated XRPL classic addresses granted admin access
+  // (audit-log endpoints). Admins sign in through the normal wallet auth flow;
+  // membership in this list is what elevates the session. Empty = no admins.
+  ADMIN_ADDRESSES: z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? '')
+        .split(',')
+        .map((address) => address.trim())
+        .filter((address) => address.length > 0),
+    )
+    .refine((addresses) => addresses.every(isClassicAddress), {
+      message: 'ADMIN_ADDRESSES must be comma-separated XRPL classic addresses',
+    }),
 });
 
 /** Fully resolved config, with `xrplEndpoint` defaulted from the network. */
@@ -58,6 +73,8 @@ export interface AppEnv {
   platformFeeBps: number;
   /** Whether to trust X-Forwarded-For from a fronting reverse proxy. */
   trustProxy: boolean;
+  /** XRPL addresses whose sessions get admin access (audit log); empty = none. */
+  adminAddresses: string[];
 }
 
 /**
@@ -88,5 +105,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     escrowEnabled: data.ESCROW_ENABLED ?? false,
     platformFeeBps: data.PLATFORM_FEE_BPS ?? 0,
     trustProxy: data.TRUST_PROXY ?? false,
+    adminAddresses: data.ADMIN_ADDRESSES,
   };
 }

@@ -4,26 +4,27 @@
  * `X-PAYMENT` header, returning the final origin `Response`. This is what lets
  * an AI agent pay for an API with a single call.
  *
- *   request → 402 → select requirement → guard max amount →
+ *   request → 402 → select requirement (by scheme) → guard max amount →
  *   ensure RLUSD trustline → pay → retry with X-PAYMENT → origin response
+ *
+ * All wire messages are x402 v1: the 402 body is a
+ * `PaymentRequirementsResponse`, `X-PAYMENT` carries the
+ * `{ x402Version, scheme, network, payload }` envelope, and
+ * `X-PAYMENT-RESPONSE` decodes to a `SettlementResponse`.
  */
 import { dropsToXrp } from 'xrpl';
 import { Client, Wallet } from 'xrpl';
 import {
   Asset,
-  PaymentMode,
   PaymentRequirementsSchema,
-  PaymentResponseSchema,
+  SettlementResponseSchema,
   X402Header,
+  X402Scheme,
+  X402_VERSION,
   decodeHeaderPayload,
   encodeHeaderPayload,
 } from '@app/shared';
-import type {
-  PaymentRequirements,
-  PaymentResponse,
-  PayPerCallPayload,
-  PrepaidCreditsPayload,
-} from '@app/shared';
+import type { PaymentPayload, PaymentRequirements, SettlementResponse } from '@app/shared';
 import { decimalGte } from './decimal.js';
 import { ensureTrustline } from './trustline.js';
 import { payChallenge } from './payment.js';
@@ -47,7 +48,8 @@ export interface X402Config {
   /**
    * An open PayChan channel. When present and the (XRP) challenge fits within
    * remaining credits, the request is paid off-ledger with a signed claim
-   * instead of an on-chain Payment. Falls back to pay-per-call otherwise.
+   * (the `paychan` scheme) instead of an on-chain Payment. Falls back to the
+   * `exact` scheme otherwise.
    */
   channel?: ChannelHandle;
 }
@@ -69,7 +71,7 @@ export class MaxAmountExceededError extends Error {
   }
 }
 
-/** Shape of the 402 challenge body issued by the gateway. */
+/** Shape of the 402 challenge body issued by the resource server. */
 interface ChallengeBody {
   accepts?: unknown;
 }
@@ -83,13 +85,13 @@ function parseRequirements(body: ChallengeBody): PaymentRequirements[] {
   return accepts.map((entry) => PaymentRequirementsSchema.parse(entry));
 }
 
-/** Pick the requirement for `mode`, honouring an asset preference. */
-function pickByMode(
+/** Pick the requirement for `scheme`, honouring an asset preference. */
+function pickByScheme(
   requirements: PaymentRequirements[],
-  mode: PaymentMode,
+  scheme: X402Scheme,
   prefer?: Asset,
 ): PaymentRequirements | undefined {
-  const candidates = requirements.filter((requirement) => requirement.mode === mode);
+  const candidates = requirements.filter((requirement) => requirement.scheme === scheme);
   if (prefer) {
     const match = candidates.find((requirement) => requirement.asset === prefer);
     if (match) return match;
@@ -100,8 +102,8 @@ function pickByMode(
 /** The challenge price expressed in human units, for the max-amount guard. */
 function humanAmount(requirements: PaymentRequirements): string {
   return requirements.asset === Asset.XRP
-    ? String(dropsToXrp(requirements.amount))
-    : requirements.amount;
+    ? String(dropsToXrp(requirements.maxAmountRequired))
+    : requirements.maxAmountRequired;
 }
 
 /** Reject an over-priced challenge before any payment is submitted. */
@@ -139,20 +141,20 @@ export async function x402fetch(
   const body = (await initial.json()) as ChallengeBody;
   const offered = parseRequirements(body);
 
-  // Fast path: pay off-ledger from an open channel when the seller's setup
-  // advertises prepaid credits and remaining credits allow. If the gateway
-  // rejects the claim (still 402), fall through to pay-per-call.
-  const creditsRequirements = pickByMode(offered, PaymentMode.PREPAID_CREDITS);
+  // Fast path: pay off-ledger from an open channel when the seller advertises
+  // the `paychan` scheme and remaining credits allow. If the gateway rejects
+  // the claim (still 402), fall through to the `exact` scheme.
+  const creditsRequirements = pickByScheme(offered, X402Scheme.PAYCHAN);
   if (creditsRequirements && canUseCredits(creditsRequirements, x402.channel)) {
     guardMaxAmount(creditsRequirements, x402.maxAmount);
     const response = await payViaCredits(url, requestInit, x402, creditsRequirements, x402.channel!);
     if (response.status !== 402) return response;
   }
 
-  const requirements = pickByMode(offered, PaymentMode.PAY_PER_CALL, x402.preferAsset);
+  const requirements = pickByScheme(offered, X402Scheme.EXACT, x402.preferAsset);
   if (!requirements) {
     // Never pay on chain against a credits-only seller — the gateway would
-    // reject the mode after the funds had already moved.
+    // reject the scheme after the funds had already moved.
     throw new Error(
       'seller accepts only prepaid credits — open and register a payment channel first',
     );
@@ -160,8 +162,10 @@ export async function x402fetch(
   guardMaxAmount(requirements, x402.maxAmount);
 
   if (requirements.asset === Asset.RLUSD && x402.manageTrustline !== false) {
-    if (!requirements.issuer) throw new Error('RLUSD challenge is missing the issuer address');
-    await ensureTrustline(x402.client, x402.wallet, requirements.issuer);
+    if (!requirements.extra.issuer) {
+      throw new Error('RLUSD challenge is missing the issuer address');
+    }
+    await ensureTrustline(x402.client, x402.wallet, requirements.extra.issuer);
   }
 
   const txHash = await payChallenge({
@@ -171,12 +175,16 @@ export async function x402fetch(
     sourceTag: x402.sourceTag,
   });
 
-  const payload: PayPerCallPayload = {
-    mode: PaymentMode.PAY_PER_CALL,
-    asset: requirements.asset,
-    nonce: requirements.nonce,
-    txHash,
-    payer: x402.wallet.classicAddress,
+  const payload: PaymentPayload = {
+    x402Version: X402_VERSION,
+    scheme: X402Scheme.EXACT,
+    network: requirements.network,
+    payload: {
+      nonce: requirements.extra.nonce,
+      asset: requirements.asset,
+      txHash,
+      payer: x402.wallet.classicAddress,
+    },
   };
 
   const headers = new Headers(requestInit.headers);
@@ -202,7 +210,7 @@ function canUseCredits(
   channel: ChannelHandle | undefined,
 ): channel is ChannelHandle {
   if (!channel || requirements.asset !== Asset.XRP) return false;
-  return hasCredits(channel, requirements.amount);
+  return hasCredits(channel, requirements.maxAmountRequired);
 }
 
 /**
@@ -217,18 +225,22 @@ async function payViaCredits(
   channel: ChannelHandle,
 ): Promise<Response> {
   const newCumulative = (
-    BigInt(channel.cumulativeDrops) + BigInt(requirements.amount)
+    BigInt(channel.cumulativeDrops) + BigInt(requirements.maxAmountRequired)
   ).toString();
   const signature = signClaim(x402.wallet, channel.channelId, newCumulative);
 
-  const payload: PrepaidCreditsPayload = {
-    mode: PaymentMode.PREPAID_CREDITS,
-    asset: Asset.XRP,
-    nonce: requirements.nonce,
-    channelId: channel.channelId,
-    cumulativeAmount: newCumulative,
-    signature,
-    payer: x402.wallet.classicAddress,
+  const payload: PaymentPayload = {
+    x402Version: X402_VERSION,
+    scheme: X402Scheme.PAYCHAN,
+    network: requirements.network,
+    payload: {
+      nonce: requirements.extra.nonce,
+      asset: Asset.XRP,
+      channelId: channel.channelId,
+      cumulativeAmount: newCumulative,
+      signature,
+      payer: x402.wallet.classicAddress,
+    },
   };
 
   const headers = new Headers(requestInit.headers);
@@ -240,8 +252,8 @@ async function payViaCredits(
 }
 
 /** Decode the `X-PAYMENT-RESPONSE` header (settlement result) from a response. */
-export function readSettlement(response: Response): PaymentResponse | undefined {
+export function readSettlement(response: Response): SettlementResponse | undefined {
   const header = response.headers.get(X402Header.X_PAYMENT_RESPONSE);
   if (!header) return undefined;
-  return PaymentResponseSchema.parse(decodeHeaderPayload(header));
+  return SettlementResponseSchema.parse(decodeHeaderPayload(header));
 }

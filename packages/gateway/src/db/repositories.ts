@@ -6,6 +6,7 @@
 import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode, PaymentSetup } from '@app/shared';
 import type { Queryable } from './pool.js';
 import type {
+  AuditLogRow,
   BotRow,
   ChallengeRow,
   ChannelPayoutRow,
@@ -767,4 +768,120 @@ export async function debitEscrowCredit(
     [sellerId, walletAddress, amount],
   );
   return (rowCount ?? 0) > 0;
+}
+
+export interface InsertAuditLogInput {
+  requestId: string;
+  method: string;
+  route: string | null;
+  path: string;
+  statusCode: number;
+  durationMs: number;
+  actorAddress: string | null;
+  sellerId: string | null;
+  ip: string | null;
+  userAgent: string | null;
+}
+
+export async function insertAuditLog(db: Queryable, input: InsertAuditLogInput): Promise<void> {
+  await db.query(
+    `INSERT INTO audit_logs
+       (request_id, method, route, path, status_code, duration_ms,
+        actor_address, seller_id, ip, user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [
+      input.requestId,
+      input.method,
+      input.route,
+      input.path,
+      input.statusCode,
+      input.durationMs,
+      input.actorAddress,
+      input.sellerId,
+      input.ip,
+      input.userAgent,
+    ],
+  );
+}
+
+/** Admin audit-trail filters; every field is optional and ANDed together. */
+export interface AuditLogFilters {
+  from?: Date;
+  to?: Date;
+  method?: string;
+  /** Exact matched-route pattern, e.g. `/sellers/:id`. */
+  route?: string;
+  /** Prefix match on the concrete request path. */
+  pathPrefix?: string;
+  /** Exact status code; ignored when min/max are also set. */
+  status?: number;
+  statusMin?: number;
+  statusMax?: number;
+  actorAddress?: string;
+  sellerId?: string;
+  requestId?: string;
+}
+
+/** Keyset cursor: everything strictly older than this (created_at, id) pair. */
+export interface AuditLogCursor {
+  createdAt: Date;
+  id: string;
+}
+
+/** Escape LIKE metacharacters so a prefix filter matches literally. */
+function escapeLikePrefix(prefix: string): string {
+  return `${prefix.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+/**
+ * Page through the audit trail, newest first. Filters are ANDed; pagination is
+ * keyset on `(created_at, id)` (matching `audit_logs_created_at_idx`) so deep
+ * pages stay cheap as the table grows.
+ */
+export async function queryAuditLogs(
+  db: Queryable,
+  filters: AuditLogFilters,
+  limit: number,
+  cursor?: AuditLogCursor,
+): Promise<AuditLogRow[]> {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  const bind = (value: unknown): string => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+
+  if (filters.from) clauses.push(`created_at >= ${bind(filters.from)}`);
+  if (filters.to) clauses.push(`created_at <= ${bind(filters.to)}`);
+  if (filters.method) clauses.push(`method = ${bind(filters.method)}`);
+  if (filters.route) clauses.push(`route = ${bind(filters.route)}`);
+  if (filters.pathPrefix) clauses.push(`path LIKE ${bind(escapeLikePrefix(filters.pathPrefix))}`);
+  if (filters.statusMin !== undefined || filters.statusMax !== undefined) {
+    if (filters.statusMin !== undefined) clauses.push(`status_code >= ${bind(filters.statusMin)}`);
+    if (filters.statusMax !== undefined) clauses.push(`status_code <= ${bind(filters.statusMax)}`);
+  } else if (filters.status !== undefined) {
+    clauses.push(`status_code = ${bind(filters.status)}`);
+  }
+  if (filters.actorAddress) clauses.push(`actor_address = ${bind(filters.actorAddress)}`);
+  if (filters.sellerId) clauses.push(`seller_id = ${bind(filters.sellerId)}`);
+  if (filters.requestId) clauses.push(`request_id = ${bind(filters.requestId)}`);
+  if (cursor) {
+    clauses.push(`(created_at, id) < (${bind(cursor.createdAt)}, ${bind(cursor.id)})`);
+  }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+  const { rows } = await db.query<AuditLogRow>(
+    `SELECT * FROM audit_logs
+     ${where}
+     ORDER BY created_at DESC, id DESC
+     LIMIT ${bind(limit)}`,
+    params,
+  );
+  return rows;
+}
+
+/** Prune audit rows older than `cutoff`; returns how many were removed. */
+export async function deleteOldAuditLogs(db: Queryable, cutoff: Date): Promise<number> {
+  const { rowCount } = await db.query(`DELETE FROM audit_logs WHERE created_at < $1`, [cutoff]);
+  return rowCount ?? 0;
 }

@@ -1,8 +1,9 @@
 /**
  * 402 challenge issuance. Creates a single-use, request-bound nonce, persists
  * it (PENDING) in Postgres — the sole replay-protection ledger — then returns
- * the x402 `PaymentRequirements` describing how to pay. The wire `amount`
- * follows the x402 convention: drops for XRP, human units for RLUSD.
+ * the x402 `PaymentRequirements` describing how to pay. The wire
+ * `maxAmountRequired` follows the x402 atomic-unit convention: drops for XRP,
+ * decimal units for RLUSD (XRPL issued currencies are natively decimal).
  */
 import { randomUUID } from 'node:crypto';
 import { xrpToDrops } from 'xrpl';
@@ -10,7 +11,9 @@ import {
   Asset,
   CHALLENGE_TTL_MS,
   PaymentRequirementsSchema,
+  schemeForMode,
   setupModes,
+  x402NetworkId,
 } from '@app/shared';
 import type { PaymentRequirements } from '@app/shared';
 import { createChallenge } from '../db/repositories.js';
@@ -20,8 +23,8 @@ import type { GatewayDeps } from '../deps.js';
 /**
  * Issue a fresh challenge for `resource` priced by `seller`. Persists one
  * single-use challenge and returns a validated `PaymentRequirements` entry
- * per payment mode the seller's setup accepts — the 402 `accepts[]` array.
- * All entries share the nonce; the payer settles it in exactly one mode.
+ * per payment scheme the seller's setup accepts — the 402 `accepts[]` array.
+ * All entries share the nonce; the payer settles it in exactly one scheme.
  */
 export async function issueChallenge(
   deps: GatewayDeps,
@@ -45,14 +48,18 @@ export async function issueChallenge(
 
   return setupModes(seller.payment_mode).map((mode) =>
     PaymentRequirementsSchema.parse({
-      mode,
+      scheme: schemeForMode(mode),
+      network: x402NetworkId(deps.env.xrplNetwork),
+      maxAmountRequired: wireAmount,
       asset: seller.price_asset,
-      amount: wireAmount,
       payTo: seller.pay_to_address,
-      nonce,
       resource,
-      expiresAt: expiresAt.getTime(),
-      ...(seller.price_asset === Asset.RLUSD ? { issuer: deps.env.rlusdIssuer } : {}),
+      description: `${seller.name}: metered access to ${resource}`,
+      maxTimeoutSeconds: Math.floor(CHALLENGE_TTL_MS / 1000),
+      extra: {
+        nonce,
+        ...(seller.price_asset === Asset.RLUSD ? { issuer: deps.env.rlusdIssuer } : {}),
+      },
     }),
   );
 }

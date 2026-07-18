@@ -35,6 +35,15 @@ export const MAX_PAYOUT_ATTEMPTS = 5;
 /** Cap on backlog-drain rounds per sweep (50 payouts per round). */
 export const MAX_PAYOUT_ROUNDS = 20;
 
+/** Audit-log rows older than this are pruned by the maintenance sweep. */
+export const AUDIT_LOG_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** Default page size for the admin audit-log listing. */
+export const AUDIT_LOG_DEFAULT_PAGE_SIZE = 50;
+
+/** Hard cap on the admin audit-log page size. */
+export const AUDIT_LOG_MAX_PAGE_SIZE = 200;
+
 /** Sign-in challenge + verify endpoints: a human logging in, not a hot path. */
 export const AUTH_RATE_LIMIT: RateLimitPolicy = { name: 'auth', limit: 30, windowMs: 60_000 };
 
