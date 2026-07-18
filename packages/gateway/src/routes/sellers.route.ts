@@ -16,26 +16,33 @@ import {
   listSellersByOwner,
 } from '../db/repositories.js';
 import type { SellerRow } from '../db/types.js';
-import { isDecimalString } from '../util/decimal.js';
+import { isPositiveMonetaryAmount } from '../util/decimal.js';
 import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
 import { channelDestinationFor } from '../deps.js';
 
-const CreateSellerSchema = z.object({
-  name: z.string().min(1).max(120),
-  originUrl: z.string().url(),
-  payToAddress: z.string().refine(isClassicAddress, 'must be a valid XRPL classic address'),
-  priceAmount: z
-    .string()
-    .refine(isDecimalString, 'priceAmount must be a decimal string')
-    .refine((value) => Number(value) > 0, 'priceAmount must be greater than zero'),
-  priceAsset: z.nativeEnum(Asset),
-  paymentMode: z.nativeEnum(PaymentSetup),
-}).refine(
-  // PayChan is XRP-native: any setup that accepts credits must price in XRP.
-  (input) => input.paymentMode === PaymentSetup.PAY_PER_CALL || input.priceAsset === Asset.XRP,
-  { message: 'prepaid credits require XRP pricing (PayChan is XRP-native)', path: ['paymentMode'] },
-);
+const CreateSellerSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    originUrl: z.string().url(),
+    payToAddress: z.string().refine(isClassicAddress, 'must be a valid XRPL classic address'),
+    priceAmount: z
+      .string()
+      .refine(
+        isPositiveMonetaryAmount,
+        'priceAmount must be a positive decimal with at most 38 digits and 6 decimal places',
+      ),
+    priceAsset: z.nativeEnum(Asset),
+    paymentMode: z.nativeEnum(PaymentSetup),
+  })
+  .refine(
+    // PayChan is XRP-native: any setup that accepts credits must price in XRP.
+    (input) => input.paymentMode === PaymentSetup.PAY_PER_CALL || input.priceAsset === Asset.XRP,
+    {
+      message: 'prepaid credits require XRP pricing (PayChan is XRP-native)',
+      path: ['paymentMode'],
+    },
+  );
 
 /** Public projection of a seller row (never exposes internal-only fields). */
 function toSellerResponse(deps: GatewayDeps, seller: SellerRow): Record<string, unknown> {

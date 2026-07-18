@@ -43,7 +43,10 @@ import { SETTLING_LEASE_STALE_MS } from '../constants.js';
 /** Whether a SETTLING lease is old enough to be reconciled safely. */
 export function isStaleSettlingLease(channel: ChannelRow, now: number = Date.now()): boolean {
   if (channel.status !== ChannelStatus.SETTLING) return false;
-  return channel.settling_since == null || channel.settling_since.getTime() < now - SETTLING_LEASE_STALE_MS;
+  return (
+    channel.settling_since == null ||
+    channel.settling_since.getTime() < now - SETTLING_LEASE_STALE_MS
+  );
 }
 
 export interface RegisterChannelInput {
@@ -53,8 +56,7 @@ export interface RegisterChannelInput {
 }
 
 export type RegisterChannelResult =
-  | { ok: true; channel: ChannelRow }
-  | { ok: false; reason: string };
+  { ok: true; channel: ChannelRow } | { ok: false; reason: string };
 
 /**
  * Register a payment channel as a prepaid-credits source for a seller. Verifies
@@ -360,7 +362,8 @@ export async function resolveSendingPayout(
   const tx = unwrapTxResult(response.result);
   if (tx.validated !== true) return; // still possible either way; check again next sweep
   const meta = tx.meta as { TransactionResult?: string } | string | undefined;
-  const engineResult = typeof meta === 'object' && meta !== null ? meta.TransactionResult : undefined;
+  const engineResult =
+    typeof meta === 'object' && meta !== null ? meta.TransactionResult : undefined;
   if (engineResult === 'tesSUCCESS') {
     await markChannelPayoutPaid(deps.pool, payout.id, payout.payout_tx_hash);
     console.info(`[channel] payout ${payout.id} resolved from ledger as PAID`);

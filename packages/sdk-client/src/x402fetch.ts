@@ -124,10 +124,7 @@ function guardMaxAmount(
  * responses are returned unchanged. The settled tx hash is available on the
  * returned response's `X-PAYMENT-RESPONSE` header via {@link readSettlement}.
  */
-export async function x402fetch(
-  url: string | URL,
-  init: X402FetchInit,
-): Promise<Response> {
+export async function x402fetch(url: string | URL, init: X402FetchInit): Promise<Response> {
   const { x402, ...rest } = init;
   // A one-shot ReadableStream body is exhausted by the initial request and
   // cannot be replayed on the paid retry — buffer it up front so every attempt
@@ -147,7 +144,13 @@ export async function x402fetch(
   const creditsRequirements = pickByScheme(offered, X402Scheme.PAYCHAN);
   if (creditsRequirements && canUseCredits(creditsRequirements, x402.channel)) {
     guardMaxAmount(creditsRequirements, x402.maxAmount);
-    const response = await payViaCredits(url, requestInit, x402, creditsRequirements, x402.channel!);
+    const response = await payViaCredits(
+      url,
+      requestInit,
+      x402,
+      creditsRequirements,
+      x402.channel!,
+    );
     if (response.status !== 402) return response;
   }
 

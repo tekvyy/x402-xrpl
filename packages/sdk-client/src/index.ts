@@ -12,11 +12,7 @@ export type { PayChallengeParams } from './payment.js';
 export { openChannel, signClaim, hasCredits, DEFAULT_SETTLE_DELAY } from './channel.js';
 export type { OpenChannelParams, ChannelHandle } from './channel.js';
 export { currencyToHex, rlusdCurrency } from './currency.js';
-export {
-  x402fetch,
-  readSettlement,
-  MaxAmountExceededError,
-} from './x402fetch.js';
+export { x402fetch, readSettlement, MaxAmountExceededError } from './x402fetch.js';
 export type { X402Config, X402FetchInit } from './x402fetch.js';
 export { signSignInMessage, signInWithGateway } from './auth.js';
 export type { SignInParams, FetchLike } from './auth.js';

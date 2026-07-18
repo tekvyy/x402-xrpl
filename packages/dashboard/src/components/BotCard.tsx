@@ -114,7 +114,9 @@ export function BotCard({ token, bot, onDeleted, onUnauthorized }: BotCardProps)
         <div>
           <dt>Spent</dt>
           <dd>
-            {detail ? `${trimDecimal(detail.usage.spend)} ${bot.asset} · ${detail.usage.calls} calls` : '…'}
+            {detail
+              ? `${trimDecimal(detail.usage.spend)} ${bot.asset} · ${detail.usage.calls} calls`
+              : '…'}
           </dd>
         </div>
       </dl>

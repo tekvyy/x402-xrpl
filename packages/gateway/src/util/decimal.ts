@@ -13,9 +13,28 @@
 /** Basic guard: a non-negative plain decimal (no sign, no exponent). */
 const DECIMAL_RE = /^\d+(\.\d+)?$/;
 
+/** Database monetary columns are NUMERIC(38, 6); reject values they cannot store. */
+export const MAX_MONETARY_DIGITS = 38;
+export const MAX_MONETARY_FRACTION_DIGITS = 6;
+
 /** True when `value` is a well-formed non-negative decimal string. */
 export function isDecimalString(value: string): boolean {
   return DECIMAL_RE.test(value);
+}
+
+/**
+ * True when a wire amount is positive and exactly representable by the
+ * gateway's NUMERIC(38, 6) monetary columns. This intentionally avoids
+ * `Number`: JavaScript would silently round large values and accepts `Infinity`.
+ */
+export function isPositiveMonetaryAmount(value: string): boolean {
+  if (!isDecimalString(value)) return false;
+  const [integer = '', fraction = ''] = value.split('.');
+  return (
+    fraction.length <= MAX_MONETARY_FRACTION_DIGITS &&
+    integer.length + fraction.length <= MAX_MONETARY_DIGITS &&
+    /[1-9]/.test(`${integer}${fraction}`)
+  );
 }
 
 /**

@@ -28,8 +28,7 @@ export interface EscrowDepositInput {
 }
 
 export type EscrowDepositResult =
-  | { ok: true; credit: EscrowCreditRow }
-  | { ok: false; reason: string };
+  { ok: true; credit: EscrowCreditRow } | { ok: false; reason: string };
 
 /** Minimal projection of the deposit Payment we read off the ledger. */
 interface RawTx {
@@ -171,7 +170,8 @@ function readAmount(delivered: unknown, asset: Asset, rlusdIssuer: string): Amou
     return { ok: false, reason: 'deposit currency is not RLUSD' };
   }
   if (delivered.issuer !== rlusdIssuer) return { ok: false, reason: 'RLUSD issuer does not match' };
-  if (!isDecimalString(delivered.value)) return { ok: false, reason: 'RLUSD amount is not numeric' };
+  if (!isDecimalString(delivered.value))
+    return { ok: false, reason: 'RLUSD amount is not numeric' };
   return { ok: true, human: delivered.value };
 }
 

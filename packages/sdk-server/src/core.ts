@@ -181,12 +181,7 @@ export async function decide(
     return { kind: 'proceed', paymentResponseHeader: header };
   }
 
-  return respondWithChallenge(
-    options,
-    resource,
-    outcome.errorReason ?? 'payment rejected',
-    header,
-  );
+  return respondWithChallenge(options, resource, outcome.errorReason ?? 'payment rejected', header);
 }
 
 /** The response header carrying the encoded settlement outcome. */

@@ -70,7 +70,9 @@ const PG_UNIQUE_VIOLATION = '23505';
 
 function isUniqueViolation(err: unknown): boolean {
   return (
-    typeof err === 'object' && err !== null && (err as { code?: string }).code === PG_UNIQUE_VIOLATION
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: string }).code === PG_UNIQUE_VIOLATION
   );
 }
 
@@ -215,9 +217,12 @@ export async function settle(
   try {
     await client.query('BEGIN');
 
-    const consumed = await transitionChallengeStatus(client, challenge.id, ChallengeStatus.CONSUMED, [
-      ChallengeStatus.PENDING,
-    ]);
+    const consumed = await transitionChallengeStatus(
+      client,
+      challenge.id,
+      ChallengeStatus.CONSUMED,
+      [ChallengeStatus.PENDING],
+    );
     if (!consumed) {
       await client.query('ROLLBACK');
       return reject('nonce has already been used');
@@ -342,9 +347,12 @@ async function settlePrepaidCredits(
   try {
     await client.query('BEGIN');
 
-    const consumed = await transitionChallengeStatus(client, challenge.id, ChallengeStatus.CONSUMED, [
-      ChallengeStatus.PENDING,
-    ]);
+    const consumed = await transitionChallengeStatus(
+      client,
+      challenge.id,
+      ChallengeStatus.CONSUMED,
+      [ChallengeStatus.PENDING],
+    );
     if (!consumed) {
       await client.query('ROLLBACK');
       return reject('nonce has already been used');

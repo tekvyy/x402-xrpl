@@ -63,7 +63,9 @@ export function createPaidFetchTool(
 
       const body = await readBody(response);
       const settlement = readSettlement(response);
-      return settlement ? { status: response.status, body, settlement } : { status: response.status, body };
+      return settlement
+        ? { status: response.status, body, settlement }
+        : { status: response.status, body };
     },
   };
 }

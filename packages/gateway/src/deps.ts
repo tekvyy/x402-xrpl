@@ -23,9 +23,6 @@ export interface GatewayDeps {
  * destination because only the destination can submit a signed claim. It then
  * forwards the seller's cut (all of it when the platform fee is zero).
  */
-export function channelDestinationFor(
-  deps: Pick<GatewayDeps, 'xrpl'>,
-  _seller: SellerRow,
-): string {
+export function channelDestinationFor(deps: Pick<GatewayDeps, 'xrpl'>, _seller: SellerRow): string {
   return deps.xrpl.address();
 }

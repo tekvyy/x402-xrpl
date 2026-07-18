@@ -117,11 +117,9 @@ export function fetchSummary(
   sellerId: string,
   signal?: AbortSignal,
 ): Promise<UsageSummary> {
-  return authed<UsageSummary>(
-    `/usage/summary?sellerId=${encodeURIComponent(sellerId)}`,
-    token,
-    { signal },
-  );
+  return authed<UsageSummary>(`/usage/summary?sellerId=${encodeURIComponent(sellerId)}`, token, {
+    signal,
+  });
 }
 
 export async function fetchTopEndpoints(
@@ -246,10 +244,7 @@ export interface CreateSellerInput {
   paymentMode: PaymentSetup;
 }
 
-export function createApi(
-  token: string,
-  input: CreateSellerInput,
-): Promise<{ sellerId: string }> {
+export function createApi(token: string, input: CreateSellerInput): Promise<{ sellerId: string }> {
   return authed('/sellers', token, { method: 'POST', body: input });
 }
 

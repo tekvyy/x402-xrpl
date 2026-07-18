@@ -6,10 +6,7 @@
  */
 import { Wallet } from 'xrpl';
 import { sign } from 'ripple-keypairs';
-import type {
-  AuthChallengeResponse,
-  AuthVerifyResponse,
-} from '@app/shared';
+import type { AuthChallengeResponse, AuthVerifyResponse } from '@app/shared';
 
 /** Minimal `fetch` surface, so callers can inject a custom implementation. */
 export type FetchLike = (
@@ -39,7 +36,7 @@ export interface SignInParams {
  * the session token. Throws with a readable message on any non-2xx step.
  */
 export async function signInWithGateway(params: SignInParams): Promise<AuthVerifyResponse> {
-  const doFetch = (params.fetchImpl ?? (globalThis.fetch as unknown as FetchLike));
+  const doFetch = params.fetchImpl ?? (globalThis.fetch as unknown as FetchLike);
   const base = params.gatewayUrl.replace(/\/+$/, '');
   const wallet = Wallet.fromSeed(params.seed);
 

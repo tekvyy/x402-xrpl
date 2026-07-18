@@ -26,7 +26,9 @@ async function main(): Promise<void> {
 
     const misses = txns.filter((tx) => tx.sourceTag !== env.sourceTag);
     for (const tx of misses) {
-      console.error(`  MISS  ${tx.type.padEnd(20)} ${tx.hash}  sourceTag=${tx.sourceTag ?? '(none)'}`);
+      console.error(
+        `  MISS  ${tx.type.padEnd(20)} ${tx.hash}  sourceTag=${tx.sourceTag ?? '(none)'}`,
+      );
     }
 
     if (misses.length > 0) {
@@ -37,7 +39,9 @@ async function main(): Promise<void> {
       return;
     }
 
-    console.log(`\nPASS: all ${txns.length} gateway transaction(s) carry source tag ${env.sourceTag}.`);
+    console.log(
+      `\nPASS: all ${txns.length} gateway transaction(s) carry source tag ${env.sourceTag}.`,
+    );
   } finally {
     await xrpl.disconnect();
   }

@@ -21,6 +21,8 @@ import { verify } from '../services/settle.service.js';
 import { usageChannelName } from '../services/usage.service.js';
 import { verifyToken } from '../services/auth.service.js';
 import { requireAuth } from './authenticate.js';
+import { SETTLEMENT_RATE_LIMIT } from '../constants.js';
+import { rateLimitByIp } from '../util/rate-limit.js';
 import type { GatewayDeps } from '../deps.js';
 
 const SellerQuerySchema = z.object({ sellerId: z.string().uuid() });
@@ -66,8 +68,9 @@ async function authorizeSellerQuery(
 
 export function registerUsageRoutes(app: FastifyInstance, deps: GatewayDeps): void {
   const auth = requireAuth(deps);
+  const settlementLimited = { preHandler: rateLimitByIp(deps.redis, SETTLEMENT_RATE_LIMIT) };
 
-  app.post('/verify', async (request, reply) => {
+  app.post('/verify', settlementLimited, async (request, reply) => {
     const parsed = FacilitatorRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply
@@ -80,7 +83,9 @@ export function registerUsageRoutes(app: FastifyInstance, deps: GatewayDeps): vo
     const isValid = outcome.result === SettleResult.VERIFIED;
     const body: VerifyResponse = {
       isValid,
-      ...(isValid ? {} : { invalidReason: outcome.reason ?? X402ErrorCode.UNEXPECTED_VERIFY_ERROR }),
+      ...(isValid
+        ? {}
+        : { invalidReason: outcome.reason ?? X402ErrorCode.UNEXPECTED_VERIFY_ERROR }),
       payer: outcome.payer ?? paymentPayload.payload.payer,
     };
     return reply.send(body);

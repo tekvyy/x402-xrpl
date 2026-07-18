@@ -9,11 +9,11 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: xrpl_gateway
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d xrpl_gateway"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d xrpl_gateway']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,12 +23,12 @@ services:
     image: redis:7
     container_name: x402-redis
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redisdata:/data
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ['redis-server', '--appendonly', 'yes']
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 5s
       retries: 10

@@ -30,7 +30,7 @@ The dashboard (`:5173`) requires a session. Authentication is
 **sign-in-with-XRPL** (via [xrpl-connect](https://github.com/XRPL-Commons/xrpl-connect)):
 you sign a one-time challenge with your wallet — the seed never leaves it.
 
-Click *Connect <wallet>* on the login screen (GemWallet / Crossmark / Xaman /
+Click _Connect <wallet>_ on the login screen (GemWallet / Crossmark / Xaman /
 WalletConnect). The dashboard requests a challenge, has the wallet sign a
 throwaway (never-submitted) `AccountSet` whose memo carries the nonce, and the
 gateway verifies the signed tx blob server-side (deterministic,

@@ -17,14 +17,16 @@ import {
   listBotsByOwner,
 } from '../db/repositories.js';
 import type { BotRow, SellerRow } from '../db/types.js';
-import { isDecimalString } from '../util/decimal.js';
+import { isPositiveMonetaryAmount } from '../util/decimal.js';
 import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
 
 const decimalAmount = z
   .string()
-  .refine(isDecimalString, 'must be a decimal string')
-  .refine((value) => Number(value) > 0, 'must be greater than zero');
+  .refine(
+    isPositiveMonetaryAmount,
+    'must be a positive decimal with at most 38 digits and 6 decimal places',
+  );
 
 const CreateBotSchema = z
   .object({

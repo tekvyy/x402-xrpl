@@ -50,10 +50,13 @@ export function rippledErrorCode(err: unknown): string | undefined {
 function requireTesSuccess(response: unknown, operation: string): string {
   const result = response as SubmittedTxResult;
   const meta = result?.result?.meta;
-  const engineResult = typeof meta === 'object' && meta !== null ? meta.TransactionResult : undefined;
+  const engineResult =
+    typeof meta === 'object' && meta !== null ? meta.TransactionResult : undefined;
   const hash = result?.result?.hash;
   if (result?.result?.validated !== true || engineResult !== 'tesSUCCESS' || !hash) {
-    throw new Error(`${operation} did not validate successfully (${engineResult ?? 'unknown result'})`);
+    throw new Error(
+      `${operation} did not validate successfully (${engineResult ?? 'unknown result'})`,
+    );
   }
   return hash;
 }

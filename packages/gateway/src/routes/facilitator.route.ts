@@ -27,7 +27,7 @@ import type { SettlementResponse, SupportedResponse } from '@app/shared';
 import { getSeller } from '../db/repositories.js';
 import { issueChallenge } from '../services/challenge.service.js';
 import { settle } from '../services/settle.service.js';
-import { CHALLENGE_RATE_LIMIT } from '../constants.js';
+import { CHALLENGE_RATE_LIMIT, SETTLEMENT_RATE_LIMIT } from '../constants.js';
 import { rateLimitByIp } from '../util/rate-limit.js';
 import type { GatewayDeps } from '../deps.js';
 
@@ -40,10 +40,13 @@ const ChallengeBodySchema = z.object({
 
 export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDeps): void {
   const limited = { preHandler: rateLimitByIp(deps.redis, CHALLENGE_RATE_LIMIT) };
+  const settlementLimited = { preHandler: rateLimitByIp(deps.redis, SETTLEMENT_RATE_LIMIT) };
   app.post('/challenge', limited, async (request, reply) => {
     const parsed = ChallengeBodySchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: 'invalid challenge request', issues: parsed.error.issues });
+      return reply
+        .code(400)
+        .send({ error: 'invalid challenge request', issues: parsed.error.issues });
     }
 
     const seller = await getSeller(deps.pool, parsed.data.sellerId);
@@ -59,7 +62,7 @@ export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDep
     });
   });
 
-  app.post('/settle', async (request, reply) => {
+  app.post('/settle', settlementLimited, async (request, reply) => {
     const parsed = FacilitatorRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply

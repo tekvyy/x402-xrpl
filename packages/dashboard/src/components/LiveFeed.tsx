@@ -6,7 +6,13 @@ import { explorerTxUrl } from '@app/shared';
 import type { UsageStreamEvent } from '../api.js';
 import { XRPL_NETWORK } from '../config.js';
 import type { FeedStatus } from '../hooks/useLiveFeed.js';
-import { formatAmount, formatTime, paymentModeLabel, shortenAddress, shortenHash } from '../format.js';
+import {
+  formatAmount,
+  formatTime,
+  paymentModeLabel,
+  shortenAddress,
+  shortenHash,
+} from '../format.js';
 import { EmptyState } from './States.js';
 
 interface LiveFeedProps {

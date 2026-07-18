@@ -57,6 +57,16 @@ export const CHALLENGE_RATE_LIMIT: RateLimitPolicy = {
   windowMs: 60_000,
 };
 
+/**
+ * `/settle` and `/verify` can each trigger XRPL RPC reads. Bound anonymous
+ * callers before they can turn the gateway into an RPC amplification point.
+ */
+export const SETTLEMENT_RATE_LIMIT: RateLimitPolicy = {
+  name: 'settlement',
+  limit: 600,
+  windowMs: 60_000,
+};
+
 /** Channel registration / escrow deposits: occasional setup actions. */
 export const REGISTRATION_RATE_LIMIT: RateLimitPolicy = {
   name: 'register',

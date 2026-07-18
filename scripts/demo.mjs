@@ -51,8 +51,19 @@ function start(label, command, args, env) {
   const child = spawn(command, args, { cwd: rootDir, env: { ...process.env, ...env } });
   children.push(child);
   const prefix = (line) => `[${label}] ${line}`;
-  child.stdout.on('data', (d) => process.stdout.write(String(d).replace(/^/gm, () => '').split('\n').filter(Boolean).map(prefix).join('\n') + '\n'));
-  child.stderr.on('data', (d) => process.stderr.write(String(d).split('\n').filter(Boolean).map(prefix).join('\n') + '\n'));
+  child.stdout.on('data', (d) =>
+    process.stdout.write(
+      String(d)
+        .replace(/^/gm, () => '')
+        .split('\n')
+        .filter(Boolean)
+        .map(prefix)
+        .join('\n') + '\n',
+    ),
+  );
+  child.stderr.on('data', (d) =>
+    process.stderr.write(String(d).split('\n').filter(Boolean).map(prefix).join('\n') + '\n'),
+  );
   return child;
 }
 
@@ -143,13 +154,20 @@ async function main() {
     GATEWAY_PORT: String(GATEWAY_PORT),
     GATEWAY_PUBLIC_URL: `http://localhost:${GATEWAY_PORT}`,
   });
-  start('dashboard', 'pnpm', ['--filter', '@app/dashboard', 'dev', '--', '--port', String(DASHBOARD_PORT)], {
-    ...baseEnv,
-    VITE_GATEWAY_URL: `http://localhost:${GATEWAY_PORT}`,
-    VITE_XRPL_NETWORK: 'TESTNET',
-  });
+  start(
+    'dashboard',
+    'pnpm',
+    ['--filter', '@app/dashboard', 'dev', '--', '--port', String(DASHBOARD_PORT)],
+    {
+      ...baseEnv,
+      VITE_GATEWAY_URL: `http://localhost:${GATEWAY_PORT}`,
+      VITE_XRPL_NETWORK: 'TESTNET',
+    },
+  );
 
-  await waitForHttp(`http://localhost:${GATEWAY_PORT}/sellers/00000000-0000-0000-0000-000000000000`);
+  await waitForHttp(
+    `http://localhost:${GATEWAY_PORT}/sellers/00000000-0000-0000-0000-000000000000`,
+  );
 
   console.log('==> Signing in the seller (sign-in-with-XRPL)…');
   const { signInWithGateway } = await import(
@@ -205,7 +223,9 @@ async function main() {
   });
 
   console.log('\n==> Demo complete. Dashboard is live (pre-authenticated as the demo seller):');
-  console.log(`      http://localhost:${DASHBOARD_PORT}/#token=${encodeURIComponent(session.token)}`);
+  console.log(
+    `      http://localhost:${DASHBOARD_PORT}/#token=${encodeURIComponent(session.token)}`,
+  );
   console.log('    Press Ctrl-C to stop the gateway, origin, and dashboard.');
 }
 

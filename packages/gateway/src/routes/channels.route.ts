@@ -50,24 +50,28 @@ export function registerChannelRoutes(app: FastifyInstance, deps: GatewayDeps): 
     });
   });
 
-  app.post<{ Params: { id: string } }>('/channels/:id/redeem', { preHandler: auth }, async (request, reply) => {
-    const channel = await getChannelByChannelId(deps.pool, request.params.id);
-    if (!channel) return reply.code(404).send({ error: 'unknown channel' });
-    const seller = await getSeller(deps.pool, channel.seller_id);
-    if (!seller || seller.owner_address !== request.ownerAddress) {
-      return reply.code(403).send({ error: 'only the seller owner can redeem this channel' });
-    }
-    const outcome = await redeemChannel(deps, request.params.id);
-    if (outcome.result !== SettleResult.SETTLED) {
-      return reply.code(400).send({ error: outcome.reason ?? 'redeem rejected' });
-    }
-    return reply.send({
-      result: outcome.result,
-      txHash: outcome.txHash,
-      explorerUrl: outcome.explorerUrl,
-      amount: outcome.amount,
-    });
-  });
+  app.post<{ Params: { id: string } }>(
+    '/channels/:id/redeem',
+    { preHandler: auth },
+    async (request, reply) => {
+      const channel = await getChannelByChannelId(deps.pool, request.params.id);
+      if (!channel) return reply.code(404).send({ error: 'unknown channel' });
+      const seller = await getSeller(deps.pool, channel.seller_id);
+      if (!seller || seller.owner_address !== request.ownerAddress) {
+        return reply.code(403).send({ error: 'only the seller owner can redeem this channel' });
+      }
+      const outcome = await redeemChannel(deps, request.params.id);
+      if (outcome.result !== SettleResult.SETTLED) {
+        return reply.code(400).send({ error: outcome.reason ?? 'redeem rejected' });
+      }
+      return reply.send({
+        result: outcome.result,
+        txHash: outcome.txHash,
+        explorerUrl: outcome.explorerUrl,
+        amount: outcome.amount,
+      });
+    },
+  );
 
   // Escrow fallback (config-gated): custodial credits, isolated from PayChan.
   if (deps.env.escrowEnabled) {

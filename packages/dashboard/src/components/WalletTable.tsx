@@ -1,7 +1,7 @@
 /** Per-wallet breakdown: call count + spend, sortable by either column. */
 import { useMemo, useState } from 'react';
 import type { WalletUsage } from '../api.js';
-import { shortenAddress, trimDecimal } from '../format.js';
+import { compareDecimalStrings, shortenAddress, trimDecimal } from '../format.js';
 import { EmptyState } from './States.js';
 
 type SortKey = 'calls' | 'spend';
@@ -12,7 +12,7 @@ export function WalletTable({ wallets }: { wallets: WalletUsage[] }): JSX.Elemen
   const sorted = useMemo(() => {
     const copy = [...wallets];
     copy.sort((a, b) =>
-      sortKey === 'calls' ? b.calls - a.calls : Number(b.spend) - Number(a.spend),
+      sortKey === 'calls' ? b.calls - a.calls : compareDecimalStrings(b.spend, a.spend),
     );
     return copy;
   }, [wallets, sortKey]);

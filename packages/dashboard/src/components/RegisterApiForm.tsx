@@ -134,7 +134,10 @@ export function RegisterApiForm({
         </label>
         <label className="field field-narrow">
           <span>Asset</span>
-          <select value={form.priceAsset} onChange={(e) => set('priceAsset', e.target.value as Asset)}>
+          <select
+            value={form.priceAsset}
+            onChange={(e) => set('priceAsset', e.target.value as Asset)}
+          >
             {Object.values(Asset).map((asset) => (
               <option key={asset} value={asset} disabled={asset === Asset.RLUSD && creditsSetup}>
                 {asset}

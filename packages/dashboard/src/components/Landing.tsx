@@ -157,9 +157,9 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           </h1>
           <p className="hero-sub">
             A drop-in facilitator for the x402 protocol on the XRP Ledger. Agents that can hold a
-            wallet, but not a credit card, pay per call in XRP or RLUSD: no signup, no
-            subscription, no payment processor. One middleware line on your server; settlement in
-            seconds on chain.
+            wallet, but not a credit card, pay per call in XRP or RLUSD: no signup, no subscription,
+            no payment processor. One middleware line on your server; settlement in seconds on
+            chain.
           </p>
           <div className="hero-actions">
             <button className="btn btn-primary" type="button" onClick={onSignIn}>
@@ -185,11 +185,7 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
               <span
                 key={line}
                 className={
-                  line.startsWith('$')
-                    ? 'term-cmd'
-                    : line.startsWith('<')
-                      ? 'term-hdr'
-                      : 'term-out'
+                  line.startsWith('$') ? 'term-cmd' : line.startsWith('<') ? 'term-hdr' : 'term-out'
                 }
               >
                 {line}
@@ -224,11 +220,13 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
             <li>Fund an XRPL wallet. That is the whole onboarding.</li>
             <li>Pick a service from the registry below (or fetch it as JSON).</li>
             <li>
-              <code className="lane-code">x402fetch(url, {'{ x402 }'})</code> hits the 402, pays
-              it, retries, and returns the real response.
+              <code className="lane-code">x402fetch(url, {'{ x402 }'})</code> hits the 402, pays it,
+              retries, and returns the real response.
             </li>
-            <li>Calling one service a lot? Open a payment channel once and spend credits
-              off-ledger: no per-call on-chain wait.</li>
+            <li>
+              Calling one service a lot? Open a payment channel once and spend credits off-ledger:
+              no per-call on-chain wait.
+            </li>
           </ol>
         </div>
       </section>
@@ -267,8 +265,8 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           <pre className="agent-snippet">{agentSnippet}</pre>
           <p className="agent-note">
             Full client helpers (channels, claims, trustlines) ship in{' '}
-            <code>@xrpl-x402/client</code>; the 402 challenge itself is self-describing, so any
-            HTTP client that can sign an XRPL transaction can pay.
+            <code>@xrpl-x402/client</code>; the 402 challenge itself is self-describing, so any HTTP
+            client that can sign an XRPL transaction can pay.
           </p>
         </div>
       </section>
@@ -278,8 +276,8 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           facilitator <code>{GATEWAY_URL}</code>
         </span>
         <span>
-          x402 on the XRP Ledger · every settlement source-tagged on chain · Beta, XRPL Testnet
-          only for now
+          x402 on the XRP Ledger · every settlement source-tagged on chain · Beta, XRPL Testnet only
+          for now
         </span>
       </footer>
     </div>

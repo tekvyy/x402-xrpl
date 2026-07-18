@@ -28,7 +28,8 @@ interface SellerInfo {
 /** Fetch the registered seller's payTo address + service URL from the gateway. */
 async function fetchSeller(config: AgentConfig): Promise<SellerInfo> {
   const response = await fetch(`${config.gatewayUrl}/sellers/${config.sellerId}`);
-  if (!response.ok) throw new Error(`could not load seller ${config.sellerId} (${response.status})`);
+  if (!response.ok)
+    throw new Error(`could not load seller ${config.sellerId} (${response.status})`);
   return (await response.json()) as SellerInfo;
 }
 
@@ -106,7 +107,9 @@ export async function runAgentDemo(
       `  call ${String(call).padStart(2, '0')}/${config.meteredCalls} → ${result.status} · credits left ${remainingXrp(channel)} XRP`,
     );
   }
-  console.log(`\n${config.meteredCalls} metered calls done off-ledger — no per-call on-chain tx.\n`);
+  console.log(
+    `\n${config.meteredCalls} metered calls done off-ledger — no per-call on-chain tx.\n`,
+  );
 
   // --- One pay-per-call request that settles on chain ---
   console.log('Making one pay-per-call request to prove on-chain settlement…');
@@ -132,7 +135,9 @@ export async function runAgentDemo(
 }
 
 /** Connect a wallet + client from config, useful for the CLI entry point. */
-export async function connectAgent(config: AgentConfig): Promise<{ client: Client; wallet: Wallet }> {
+export async function connectAgent(
+  config: AgentConfig,
+): Promise<{ client: Client; wallet: Wallet }> {
   const wallet = loadWallet(config.seed);
   const client = new Client(config.xrplEndpoint);
   await ensureConnected(client);

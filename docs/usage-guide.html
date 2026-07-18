@@ -1,189 +1,384 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>XRPL x402 Gateway · Usage &amp; Test Guide</title>
-<style>
-  :root {
-    --bg: #0d0b08;
-    --panel: #14110c;
-    --panel-2: #1a150e;
-    --line: #3a2e1c;
-    --line-soft: #2a2216;
-    --amber: #f0a13c;
-    --amber-dim: #b97b2a;
-    --text: #d8c9ae;
-    --text-dim: #8f8168;
-    --good: #7dc97d;
-    --bad: #d97b6c;
-    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    background-image: radial-gradient(rgba(240,161,60,.05) 1px, transparent 1px);
-    background-size: 26px 26px;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 14px;
-    line-height: 1.65;
-  }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 20px 80px; }
-  header { border: 1px solid var(--line); background: var(--panel); padding: 26px 28px; margin-bottom: 28px; }
-  .badge {
-    display: inline-block; border: 1px solid var(--amber); color: var(--amber);
-    padding: 2px 10px; font-size: 12px; letter-spacing: 2px; margin-bottom: 12px;
-  }
-  h1 { color: var(--amber); font-size: 22px; letter-spacing: 3px; text-transform: uppercase; }
-  .sub { color: var(--text-dim); margin-top: 8px; }
-  h2 {
-    color: var(--amber); font-size: 15px; letter-spacing: 2px; text-transform: uppercase;
-    margin: 44px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line-soft);
-  }
-  h3 { color: var(--text); font-size: 14px; letter-spacing: 1px; margin: 22px 0 8px; text-transform: uppercase; }
-  p { margin: 10px 0; }
-  a { color: var(--amber); }
-  em { color: var(--text-dim); font-style: normal; }
-  strong { color: var(--amber); font-weight: 600; }
-  code {
-    background: var(--panel-2); border: 1px solid var(--line-soft);
-    padding: 1px 6px; font-size: 13px; color: var(--amber);
-  }
-  pre {
-    background: var(--panel); border: 1px solid var(--line); padding: 16px 18px;
-    overflow-x: auto; margin: 14px 0; font-size: 13px; line-height: 1.55;
-  }
-  pre code { background: none; border: none; padding: 0; color: var(--text); }
-  pre .c { color: var(--text-dim); }
-  pre .a { color: var(--amber); }
-  .panel { border: 1px solid var(--line); background: var(--panel); padding: 18px 20px; margin: 14px 0; }
-  .note { border-left: 3px solid var(--amber-dim); }
-  .warn { border-left: 3px solid var(--bad); }
-  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px; }
-  th, td { border: 1px solid var(--line-soft); padding: 8px 10px; text-align: left; vertical-align: top; }
-  th { color: var(--amber); background: var(--panel); letter-spacing: 1px; font-weight: 600; }
-  td { background: rgba(20,17,12,.6); }
-  .scroll { overflow-x: auto; }
-  .ok::before { content: "ok "; color: var(--good); font-weight: 700; }
-  ul, ol { margin: 10px 0 10px 24px; }
-  li { margin: 5px 0; }
-  .flow {
-    display: grid; gap: 8px; margin: 14px 0;
-  }
-  .flow div {
-    border: 1px dashed var(--line); background: var(--panel); padding: 10px 14px; color: var(--text);
-  }
-  .flow div b { color: var(--amber); }
-  .persona { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
-  @media (max-width: 720px) { .persona { grid-template-columns: 1fr; } }
-  .persona .panel { margin: 0; }
-  .persona h3 { margin-top: 0; }
-  img.shot { width: 100%; border: 1px solid var(--line); margin: 12px 0; display: block; }
-  .kbd { color: var(--good); }
-  footer { margin-top: 60px; color: var(--text-dim); font-size: 12px; border-top: 1px solid var(--line-soft); padding-top: 14px; }
-</style>
-</head>
-<body>
-<div class="wrap">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>XRPL x402 Gateway · Usage &amp; Test Guide</title>
+    <style>
+      :root {
+        --bg: #0d0b08;
+        --panel: #14110c;
+        --panel-2: #1a150e;
+        --line: #3a2e1c;
+        --line-soft: #2a2216;
+        --amber: #f0a13c;
+        --amber-dim: #b97b2a;
+        --text: #d8c9ae;
+        --text-dim: #8f8168;
+        --good: #7dc97d;
+        --bad: #d97b6c;
+        --mono: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        background-image: radial-gradient(rgba(240, 161, 60, 0.05) 1px, transparent 1px);
+        background-size: 26px 26px;
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 14px;
+        line-height: 1.65;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 40px 20px 80px;
+      }
+      header {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 26px 28px;
+        margin-bottom: 28px;
+      }
+      .badge {
+        display: inline-block;
+        border: 1px solid var(--amber);
+        color: var(--amber);
+        padding: 2px 10px;
+        font-size: 12px;
+        letter-spacing: 2px;
+        margin-bottom: 12px;
+      }
+      h1 {
+        color: var(--amber);
+        font-size: 22px;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+      }
+      .sub {
+        color: var(--text-dim);
+        margin-top: 8px;
+      }
+      h2 {
+        color: var(--amber);
+        font-size: 15px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin: 44px 0 14px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      h3 {
+        color: var(--text);
+        font-size: 14px;
+        letter-spacing: 1px;
+        margin: 22px 0 8px;
+        text-transform: uppercase;
+      }
+      p {
+        margin: 10px 0;
+      }
+      a {
+        color: var(--amber);
+      }
+      em {
+        color: var(--text-dim);
+        font-style: normal;
+      }
+      strong {
+        color: var(--amber);
+        font-weight: 600;
+      }
+      code {
+        background: var(--panel-2);
+        border: 1px solid var(--line-soft);
+        padding: 1px 6px;
+        font-size: 13px;
+        color: var(--amber);
+      }
+      pre {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        padding: 16px 18px;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      pre code {
+        background: none;
+        border: none;
+        padding: 0;
+        color: var(--text);
+      }
+      pre .c {
+        color: var(--text-dim);
+      }
+      pre .a {
+        color: var(--amber);
+      }
+      .panel {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 18px 20px;
+        margin: 14px 0;
+      }
+      .note {
+        border-left: 3px solid var(--amber-dim);
+      }
+      .warn {
+        border-left: 3px solid var(--bad);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 14px 0;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border: 1px solid var(--line-soft);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        color: var(--amber);
+        background: var(--panel);
+        letter-spacing: 1px;
+        font-weight: 600;
+      }
+      td {
+        background: rgba(20, 17, 12, 0.6);
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      .ok::before {
+        content: 'ok ';
+        color: var(--good);
+        font-weight: 700;
+      }
+      ul,
+      ol {
+        margin: 10px 0 10px 24px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      .flow {
+        display: grid;
+        gap: 8px;
+        margin: 14px 0;
+      }
+      .flow div {
+        border: 1px dashed var(--line);
+        background: var(--panel);
+        padding: 10px 14px;
+        color: var(--text);
+      }
+      .flow div b {
+        color: var(--amber);
+      }
+      .persona {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin: 14px 0;
+      }
+      @media (max-width: 720px) {
+        .persona {
+          grid-template-columns: 1fr;
+        }
+      }
+      .persona .panel {
+        margin: 0;
+      }
+      .persona h3 {
+        margin-top: 0;
+      }
+      img.shot {
+        width: 100%;
+        border: 1px solid var(--line);
+        margin: 12px 0;
+        display: block;
+      }
+      .kbd {
+        color: var(--good);
+      }
+      footer {
+        margin-top: 60px;
+        color: var(--text-dim);
+        font-size: 12px;
+        border-top: 1px solid var(--line-soft);
+        padding-top: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <span class="badge">x402</span>
+        <h1>XRPL x402 Gateway</h1>
+        <p class="sub">
+          Usage &amp; test guide: charge per API call in XRP or RLUSD over HTTP 402, verified end to
+          end on XRPL testnet.
+        </p>
+      </header>
 
-<header>
-  <span class="badge">x402</span>
-  <h1>XRPL x402 Gateway</h1>
-  <p class="sub">Usage &amp; test guide: charge per API call in XRP or RLUSD over HTTP 402, verified end to end on XRPL testnet.</p>
-</header>
+      <h2 id="what">1 · What this project does</h2>
+      <p>
+        The gateway lets any HTTP API charge <strong>per call</strong> using the
+        <strong>x402 protocol</strong> (HTTP <code>402 Payment Required</code>), settling in
+        <strong>XRP</strong> or <strong>RLUSD</strong> on the XRP Ledger. It is a faithful XRPL port
+        of Coinbase's x402: the gateway acts as the <em>facilitator</em> (issuing challenges,
+        verifying and settling payments) while a one-line middleware in the seller's own server
+        enforces payment on the seller's routes.
+      </p>
+      <div class="persona">
+        <div class="panel">
+          <h3>Seller / Admin</h3>
+          <p>
+            You own an API and want revenue per request with no payment processor. Sign in with an
+            XRPL wallet, register the API (name, price, payout address), drop the
+            <code>@app/sdk-server</code> middleware into your server, and watch revenue live on the
+            dashboard.
+          </p>
+        </div>
+        <div class="panel">
+          <h3>Agent / Buyer</h3>
+          <p>
+            You run an AI agent (or any client) that cannot sign up for Stripe but can hold an XRPL
+            wallet. <code>x402fetch</code> makes a request, hits a 402, pays it, and retries
+            automatically: one function call per paid request.
+          </p>
+        </div>
+      </div>
 
-<h2 id="what">1 · What this project does</h2>
-<p>
-  The gateway lets any HTTP API charge <strong>per call</strong> using the
-  <strong>x402 protocol</strong> (HTTP <code>402 Payment Required</code>), settling in
-  <strong>XRP</strong> or <strong>RLUSD</strong> on the XRP Ledger. It is a faithful XRPL port of
-  Coinbase's x402: the gateway acts as the <em>facilitator</em> (issuing challenges, verifying and
-  settling payments) while a one-line middleware in the seller's own server enforces payment on
-  the seller's routes.
-</p>
-<div class="persona">
-  <div class="panel">
-    <h3>Seller / Admin</h3>
-    <p>You own an API and want revenue per request with no payment processor.
-    Sign in with an XRPL wallet, register the API (name, price, payout address),
-    drop the <code>@app/sdk-server</code> middleware into your server, and watch
-    revenue live on the dashboard.</p>
-  </div>
-  <div class="panel">
-    <h3>Agent / Buyer</h3>
-    <p>You run an AI agent (or any client) that cannot sign up for Stripe but can hold an
-    XRPL wallet. <code>x402fetch</code> makes a request, hits a 402, pays it, and retries
-    automatically: one function call per paid request.</p>
-  </div>
-</div>
+      <h2 id="flow">2 · How a paid request flows</h2>
+      <div class="flow">
+        <div>1 · <b>Agent</b> calls <code>GET /data</code> on the seller's API.</div>
+        <div>
+          2 · <b>Middleware</b> sees no payment header, asks the gateway for a challenge, answers
+          <b>402</b> with <code>accepts[]</code> (price, payTo, single-use nonce).
+        </div>
+        <div>
+          3 · <b>Agent</b> pays: an on-chain XRPL Payment (pay-per-call) <em>or</em> an off-ledger
+          signed PayChan claim (prepaid credits), then retries with the
+          <code>X-PAYMENT</code> header.
+        </div>
+        <div>
+          4 · <b>Middleware</b> forwards the payment to the gateway's <code>/settle</code>. The
+          gateway verifies against the ledger, consumes the nonce, records usage.
+        </div>
+        <div>
+          5 · <b>Seller API</b> serves the real response, now carrying
+          <code>X-PAYMENT-RESPONSE</code> (settlement proof, explorer link for on-chain payments).
+        </div>
+      </div>
+      <p>
+        <em
+          >Every gateway-submitted transaction is stamped with your team source tag, so on-chain
+          activity counts toward the XRPL Commons leaderboard.</em
+        >
+      </p>
 
-<h2 id="flow">2 · How a paid request flows</h2>
-<div class="flow">
-  <div>1 · <b>Agent</b> calls <code>GET /data</code> on the seller's API.</div>
-  <div>2 · <b>Middleware</b> sees no payment header, asks the gateway for a challenge, answers <b>402</b> with <code>accepts[]</code> (price, payTo, single-use nonce).</div>
-  <div>3 · <b>Agent</b> pays: an on-chain XRPL Payment (pay-per-call) <em>or</em> an off-ledger signed PayChan claim (prepaid credits), then retries with the <code>X-PAYMENT</code> header.</div>
-  <div>4 · <b>Middleware</b> forwards the payment to the gateway's <code>/settle</code>. The gateway verifies against the ledger, consumes the nonce, records usage.</div>
-  <div>5 · <b>Seller API</b> serves the real response, now carrying <code>X-PAYMENT-RESPONSE</code> (settlement proof, explorer link for on-chain payments).</div>
-</div>
-<p><em>Every gateway-submitted transaction is stamped with your team source tag, so on-chain activity counts toward the XRPL Commons leaderboard.</em></p>
-
-<h2 id="quickstart">3 · Quick start (one command demo)</h2>
-<p>Prerequisites: <strong>Node ≥ 20</strong>, <strong>pnpm</strong>, and <strong>Docker</strong> (for Postgres + Redis).</p>
-<pre><code>pnpm install
+      <h2 id="quickstart">3 · Quick start (one command demo)</h2>
+      <p>
+        Prerequisites: <strong>Node ≥ 20</strong>, <strong>pnpm</strong>, and
+        <strong>Docker</strong> (for Postgres + Redis).
+      </p>
+      <pre><code>pnpm install
 cp .env.example .env      <span class="c"># then edit values if needed</span>
 make up                   <span class="c"># start Postgres + Redis (docker compose)</span>
 pnpm demo                 <span class="c"># full testnet demo, end to end</span></code></pre>
-<p><code>pnpm demo</code> builds everything, applies migrations, faucet-funds three fresh
-testnet wallets (gateway, agent, seller), boots the gateway (<code>:8402</code>), dashboard
-(<code>:5173</code>) and a demo seller API (<code>:8403</code>), registers the seller, then runs the
-agent: open one payment channel, make <strong>20 off-ledger metered calls</strong>, then
-<strong>one pay-per-call</strong> that settles on chain and prints the explorer URL.
-Servers stay up afterwards; the console prints a <strong>pre-authenticated dashboard URL</strong>
-so you can watch the live feed without a wallet extension. <span class="kbd">Ctrl-C</span> tears it down.</p>
+      <p>
+        <code>pnpm demo</code> builds everything, applies migrations, faucet-funds three fresh
+        testnet wallets (gateway, agent, seller), boots the gateway (<code>:8402</code>), dashboard
+        (<code>:5173</code>) and a demo seller API (<code>:8403</code>), registers the seller, then
+        runs the agent: open one payment channel, make <strong>20 off-ledger metered calls</strong>,
+        then <strong>one pay-per-call</strong> that settles on chain and prints the explorer URL.
+        Servers stay up afterwards; the console prints a
+        <strong>pre-authenticated dashboard URL</strong> so you can watch the live feed without a
+        wallet extension. <span class="kbd">Ctrl-C</span> tears it down.
+      </p>
 
-<h2 id="seller">4 · Seller guide (the admin side)</h2>
-<h3>4.1 Sign in with your wallet</h3>
-<p>Open the dashboard at <code>http://localhost:5173</code>. Auth is sign-in-with-XRPL:
-connect a browser wallet (GemWallet and Crossmark work with zero config; Xaman and
-WalletConnect need API keys in <code>.env</code>) and sign a one-time challenge. No transaction is
-submitted and no fee is charged; the wallet only proves address ownership. The signed
-challenge is exchanged for a 12-hour bearer session token.</p>
+      <h2 id="seller">4 · Seller guide (the admin side)</h2>
+      <h3>4.1 Sign in with your wallet</h3>
+      <p>
+        Open the dashboard at <code>http://localhost:5173</code>. Auth is sign-in-with-XRPL: connect
+        a browser wallet (GemWallet and Crossmark work with zero config; Xaman and WalletConnect
+        need API keys in <code>.env</code>) and sign a one-time challenge. No transaction is
+        submitted and no fee is charged; the wallet only proves address ownership. The signed
+        challenge is exchanged for a 12-hour bearer session token.
+      </p>
 
-<h3>4.2 Register your API</h3>
-<p>On the <strong>My APIs</strong> tab, fill in name, public base URL, pay-to address, price, asset,
-and how callers pay:</p>
-<ul>
-  <li><strong>PAY-PER-CALL</strong>: one on-chain payment per request (XRP or RLUSD).</li>
-  <li><strong>PREPAID CREDITS</strong>: callers fund a payment channel once, then spend it off-ledger per call (XRP only, the fast path for agents).</li>
-  <li><strong>BOTH</strong>: agents use credits for speed, one-off callers pay per call.</li>
-</ul>
-<img class="shot" src="dashboard.jpg" alt="Seller dashboard after the verified test run: 0.21 XRP revenue, 21 calls, 1 active wallet, live activity feed">
-<p><em>The dashboard right after the verified test run below: 0.21 XRP revenue across 21 calls from one agent wallet, with the live settlement feed connected.</em></p>
+      <h3>4.2 Register your API</h3>
+      <p>
+        On the <strong>My APIs</strong> tab, fill in name, public base URL, pay-to address, price,
+        asset, and how callers pay:
+      </p>
+      <ul>
+        <li><strong>PAY-PER-CALL</strong>: one on-chain payment per request (XRP or RLUSD).</li>
+        <li>
+          <strong>PREPAID CREDITS</strong>: callers fund a payment channel once, then spend it
+          off-ledger per call (XRP only, the fast path for agents).
+        </li>
+        <li><strong>BOTH</strong>: agents use credits for speed, one-off callers pay per call.</li>
+      </ul>
+      <img
+        class="shot"
+        src="dashboard.jpg"
+        alt="Seller dashboard after the verified test run: 0.21 XRP revenue, 21 calls, 1 active wallet, live activity feed"
+      />
+      <p>
+        <em
+          >The dashboard right after the verified test run below: 0.21 XRP revenue across 21 calls
+          from one agent wallet, with the live settlement feed connected.</em
+        >
+      </p>
 
-<h3>4.3 Meter your own server (one middleware)</h3>
-<p>Pricing lives in the gateway registration, so middleware config is just two values:</p>
-<pre><code><span class="c">// Fastify</span>
+      <h3>4.3 Meter your own server (one middleware)</h3>
+      <p>Pricing lives in the gateway registration, so middleware config is just two values:</p>
+      <pre><code><span class="c">// Fastify</span>
 <span class="a">import</span> { x402Fastify } <span class="a">from</span> '@app/sdk-server';
 
 <span class="a">const</span> pay = x402Fastify({ gatewayUrl: 'http://localhost:8402', sellerId });
 app.get('/premium', { preHandler: pay }, <span class="a">async</span> () =&gt; ({ secret: 42 }));
 
 <span class="c">// Express: app.get('/premium', x402Express({ gatewayUrl, sellerId }), handler)</span></code></pre>
-<p>Because payment is enforced inside your own server, there is no separate unmetered
-origin URL to leak or bypass. The middleware holds no XRPL or pricing logic; it delegates
-every x402 decision to the gateway.</p>
+      <p>
+        Because payment is enforced inside your own server, there is no separate unmetered origin
+        URL to leak or bypass. The middleware holds no XRPL or pricing logic; it delegates every
+        x402 decision to the gateway.
+      </p>
 
-<h3>4.4 Watch revenue and redeem</h3>
-<ul>
-  <li><strong>Live feed</strong>: every settlement streams to the dashboard over SSE, scoped to your signed-in address. Usage data is owner-only; other wallets get a 404.</li>
-  <li><strong>Channel redemption</strong>: credits spend off-ledger; the gateway pulls the delivered value on chain automatically once a channel is 80% spent or near expiry, and you can trigger it manually via <code>POST /channels/:id/redeem</code> (owner only). The seller's cut is then forwarded to your pay-to address as a durable, retried payout.</li>
-  <li><strong>My Bots</strong>: configure a paying agent (label, target seller, spend caps, deposit) and download a ready-to-run <code>.env</code> plus run command. The bot's seed stays with you; the gateway stores only the public address.</li>
-</ul>
+      <h3>4.4 Watch revenue and redeem</h3>
+      <ul>
+        <li>
+          <strong>Live feed</strong>: every settlement streams to the dashboard over SSE, scoped to
+          your signed-in address. Usage data is owner-only; other wallets get a 404.
+        </li>
+        <li>
+          <strong>Channel redemption</strong>: credits spend off-ledger; the gateway pulls the
+          delivered value on chain automatically once a channel is 80% spent or near expiry, and you
+          can trigger it manually via <code>POST /channels/:id/redeem</code> (owner only). The
+          seller's cut is then forwarded to your pay-to address as a durable, retried payout.
+        </li>
+        <li>
+          <strong>My Bots</strong>: configure a paying agent (label, target seller, spend caps,
+          deposit) and download a ready-to-run <code>.env</code> plus run command. The bot's seed
+          stays with you; the gateway stores only the public address.
+        </li>
+      </ul>
 
-<h2 id="agent">5 · Agent guide (the buyer side)</h2>
-<h3>5.1 Pay-per-call in one function</h3>
-<pre><code><span class="a">import</span> { Client, Wallet } <span class="a">from</span> 'xrpl';
+      <h2 id="agent">5 · Agent guide (the buyer side)</h2>
+      <h3>5.1 Pay-per-call in one function</h3>
+      <pre><code><span class="a">import</span> { Client, Wallet } <span class="a">from</span> 'xrpl';
 <span class="a">import</span> { x402fetch } <span class="a">from</span> '@app/sdk-client';
 
 <span class="a">const</span> client = <span class="a">new</span> Client('wss://s.altnet.rippletest.net:51233');
@@ -199,11 +394,13 @@ every x402 decision to the gateway.</p>
 <span class="c">// 402 handled, payment made, request retried: res is the real API response.</span>
 console.log(res.headers.get('x-payment-response'));  <span class="c">// settlement proof</span></code></pre>
 
-<h3>5.2 Prepaid credits (the fast path)</h3>
-<p>Open one channel to the seller's <code>channelDestination</code> (from the public
-<code>GET /sellers/:id</code>), register it, and pass it to every call. Each call is then an
-off-ledger signed claim: no per-call on-chain wait.</p>
-<pre><code><span class="a">import</span> { openChannel, x402fetch } <span class="a">from</span> '@app/sdk-client';
+      <h3>5.2 Prepaid credits (the fast path)</h3>
+      <p>
+        Open one channel to the seller's <code>channelDestination</code> (from the public
+        <code>GET /sellers/:id</code>), register it, and pass it to every call. Each call is then an
+        off-ledger signed claim: no per-call on-chain wait.
+      </p>
+      <pre><code><span class="a">import</span> { openChannel, x402fetch } <span class="a">from</span> '@app/sdk-client';
 
 <span class="a">const</span> info = <span class="a">await</span> (<span class="a">await</span> fetch(`${gateway}/sellers/${sellerId}`)).json();
 <span class="a">const</span> channel = <span class="a">await</span> openChannel({
@@ -221,115 +418,291 @@ off-ledger signed claim: no per-call on-chain wait.</p>
 <span class="a">for</span> (<span class="a">let</span> i = 0; i &lt; 20; i++) {
   <span class="a">await</span> x402fetch(resourceUrl, { x402: { wallet, client, sourceTag: 1080108, channel } });
 }</code></pre>
-<div class="panel note">
-  <p><strong>Plan around two PayChan realities:</strong> a channel is per (payer, seller) and locks
-  capital up front, so the first call to a new seller costs a channel open or a pay-per-call.
-  And credits are XRP-only (PayChan is XRP-native); RLUSD pricing settles via pay-per-call only.</p>
-</div>
+      <div class="panel note">
+        <p>
+          <strong>Plan around two PayChan realities:</strong> a channel is per (payer, seller) and
+          locks capital up front, so the first call to a new seller costs a channel open or a
+          pay-per-call. And credits are XRP-only (PayChan is XRP-native); RLUSD pricing settles via
+          pay-per-call only.
+        </p>
+      </div>
 
-<h2 id="modes">6 · Payment modes at a glance</h2>
-<div class="scroll">
-<table>
-  <tr><th></th><th>Pay-per-call</th><th>Prepaid credits (PayChan)</th></tr>
-  <tr><td>Assets</td><td>XRP or RLUSD</td><td>XRP only</td></tr>
-  <tr><td>Per-call latency</td><td>One ledger round-trip (~4s)</td><td>Off-ledger, milliseconds</td></tr>
-  <tr><td>On-chain txs</td><td>One per call</td><td>One channel open + one redeem for many calls</td></tr>
-  <tr><td>Best for</td><td>One-off callers, stable-unit (RLUSD) pricing</td><td>Agents making many calls to one seller</td></tr>
-  <tr><td>Safety rails</td><td>Single-use nonce, exact tx verification against the ledger</td><td>Monotonic signed claims, ledger-read keys, SettleDelay/CancelAfter guards, auto-redeem before expiry</td></tr>
-</table>
-</div>
+      <h2 id="modes">6 · Payment modes at a glance</h2>
+      <div class="scroll">
+        <table>
+          <tr>
+            <th></th>
+            <th>Pay-per-call</th>
+            <th>Prepaid credits (PayChan)</th>
+          </tr>
+          <tr>
+            <td>Assets</td>
+            <td>XRP or RLUSD</td>
+            <td>XRP only</td>
+          </tr>
+          <tr>
+            <td>Per-call latency</td>
+            <td>One ledger round-trip (~4s)</td>
+            <td>Off-ledger, milliseconds</td>
+          </tr>
+          <tr>
+            <td>On-chain txs</td>
+            <td>One per call</td>
+            <td>One channel open + one redeem for many calls</td>
+          </tr>
+          <tr>
+            <td>Best for</td>
+            <td>One-off callers, stable-unit (RLUSD) pricing</td>
+            <td>Agents making many calls to one seller</td>
+          </tr>
+          <tr>
+            <td>Safety rails</td>
+            <td>Single-use nonce, exact tx verification against the ledger</td>
+            <td>
+              Monotonic signed claims, ledger-read keys, SettleDelay/CancelAfter guards, auto-redeem
+              before expiry
+            </td>
+          </tr>
+        </table>
+      </div>
 
-<h2 id="api">7 · HTTP surface</h2>
-<div class="scroll">
-<table>
-  <tr><th>Endpoint</th><th>Auth</th><th>Purpose</th></tr>
-  <tr><td><code>POST /auth/challenge</code></td><td>none · 30/min per IP</td><td>Issue a sign-in challenge for an address (keyed per address + nonce)</td></tr>
-  <tr><td><code>POST /auth/verify</code> · <code>/auth/verify-tx</code></td><td>none · 30/min per IP</td><td>Exchange the signed challenge (message or tx blob) + nonce for a session token</td></tr>
-  <tr><td><code>POST /sellers</code> · <code>GET /sellers</code></td><td>bearer</td><td>Register / list your APIs</td></tr>
-  <tr><td><code>GET /sellers/:id</code></td><td>none</td><td>Public seller info: price, payTo, channelDestination</td></tr>
-  <tr><td><code>GET /catalog</code></td><td>none</td><td>Public service registry: every registered API as JSON, for agent discovery (rendered on the dashboard landing page for humans)</td></tr>
-  <tr><td><code>POST /challenge</code></td><td>none · 600/min per IP</td><td>Facilitator: issue a single-use 402 challenge for (seller, resource)</td></tr>
-  <tr><td><code>POST /settle</code></td><td>none</td><td>x402 facilitator settle: verify + consume a payment (spec SettlementResponse)</td></tr>
-  <tr><td><code>POST /verify</code></td><td>none</td><td>x402 facilitator verify without consuming (spec VerifyResponse)</td></tr>
-  <tr><td><code>GET /supported</code></td><td>none</td><td>x402 facilitator capability listing: supported (scheme, network) kinds</td></tr>
-  <tr><td><code>POST /channels</code></td><td>none · 60/min per IP</td><td>Register a payment channel (destination, deposit, key are read from the ledger)</td></tr>
-  <tr><td><code>POST /channels/:id/redeem</code></td><td>bearer, owner only</td><td>Redeem accumulated claims on chain; queues the seller payout</td></tr>
-  <tr><td><code>GET /usage/summary · /top-endpoints · /by-wallet</code></td><td>bearer, owner only</td><td>Revenue, calls, active wallets, per-endpoint and per-wallet breakdowns</td></tr>
-  <tr><td><code>GET /usage/stream</code></td><td>token in query, owner only</td><td>SSE live settlement feed</td></tr>
-  <tr><td><code>POST /bots</code> · <code>GET /bots/:id/config</code></td><td>bearer</td><td>Save a bot config; download its runnable <code>.env</code></td></tr>
-  <tr><td><code>GET /health</code></td><td>none</td><td>Liveness probe</td></tr>
-</table>
-</div>
+      <h2 id="api">7 · HTTP surface</h2>
+      <div class="scroll">
+        <table>
+          <tr>
+            <th>Endpoint</th>
+            <th>Auth</th>
+            <th>Purpose</th>
+          </tr>
+          <tr>
+            <td><code>POST /auth/challenge</code></td>
+            <td>none · 30/min per IP</td>
+            <td>Issue a sign-in challenge for an address (keyed per address + nonce)</td>
+          </tr>
+          <tr>
+            <td><code>POST /auth/verify</code> · <code>/auth/verify-tx</code></td>
+            <td>none · 30/min per IP</td>
+            <td>Exchange the signed challenge (message or tx blob) + nonce for a session token</td>
+          </tr>
+          <tr>
+            <td><code>POST /sellers</code> · <code>GET /sellers</code></td>
+            <td>bearer</td>
+            <td>Register / list your APIs</td>
+          </tr>
+          <tr>
+            <td><code>GET /sellers/:id</code></td>
+            <td>none</td>
+            <td>Public seller info: price, payTo, channelDestination</td>
+          </tr>
+          <tr>
+            <td><code>GET /catalog</code></td>
+            <td>none</td>
+            <td>
+              Public service registry: every registered API as JSON, for agent discovery (rendered
+              on the dashboard landing page for humans)
+            </td>
+          </tr>
+          <tr>
+            <td><code>POST /challenge</code></td>
+            <td>none · 600/min per IP</td>
+            <td>Facilitator: issue a single-use 402 challenge for (seller, resource)</td>
+          </tr>
+          <tr>
+            <td><code>POST /settle</code></td>
+            <td>none</td>
+            <td>x402 facilitator settle: verify + consume a payment (spec SettlementResponse)</td>
+          </tr>
+          <tr>
+            <td><code>POST /verify</code></td>
+            <td>none</td>
+            <td>x402 facilitator verify without consuming (spec VerifyResponse)</td>
+          </tr>
+          <tr>
+            <td><code>GET /supported</code></td>
+            <td>none</td>
+            <td>x402 facilitator capability listing: supported (scheme, network) kinds</td>
+          </tr>
+          <tr>
+            <td><code>POST /channels</code></td>
+            <td>none · 60/min per IP</td>
+            <td>Register a payment channel (destination, deposit, key are read from the ledger)</td>
+          </tr>
+          <tr>
+            <td><code>POST /channels/:id/redeem</code></td>
+            <td>bearer, owner only</td>
+            <td>Redeem accumulated claims on chain; queues the seller payout</td>
+          </tr>
+          <tr>
+            <td><code>GET /usage/summary · /top-endpoints · /by-wallet</code></td>
+            <td>bearer, owner only</td>
+            <td>Revenue, calls, active wallets, per-endpoint and per-wallet breakdowns</td>
+          </tr>
+          <tr>
+            <td><code>GET /usage/stream</code></td>
+            <td>token in query, owner only</td>
+            <td>SSE live settlement feed</td>
+          </tr>
+          <tr>
+            <td><code>POST /bots</code> · <code>GET /bots/:id/config</code></td>
+            <td>bearer</td>
+            <td>Save a bot config; download its runnable <code>.env</code></td>
+          </tr>
+          <tr>
+            <td><code>GET /health</code></td>
+            <td>none</td>
+            <td>Liveness probe</td>
+          </tr>
+        </table>
+      </div>
 
-<h2 id="verified">8 · Verified test run (what "working" looks like)</h2>
-<p>This exact flow was executed against <strong>XRPL testnet</strong> on 2026-07-17 with the real
-gateway, real middleware, and the real agent. All <strong>21 checks passed</strong>; the on-chain
-transactions are publicly visible:</p>
-<div class="panel">
-  <p class="ok">gateway /health responds</p>
-  <p class="ok">admin sign-in issues a session token (sign-in-with-XRPL)</p>
-  <p class="ok">verify with a wrong nonce is rejected 401</p>
-  <p class="ok">admin registers a seller (price 0.01 XRP, setup BOTH)</p>
-  <p class="ok">seller list requires auth; public lookup exposes channelDestination</p>
-  <p class="ok">usage starts at zero; another wallet reading your usage gets 404</p>
-  <p class="ok">facilitator /challenge returns both accepts[] modes</p>
-  <p class="ok">settle with a fake tx hash is REJECTED</p>
-  <p class="ok">auth endpoints rate limit (429)</p>
-  <p class="ok">unpaid request to the seller API answers 402 with accepts[]</p>
-  <p class="ok">agent opens a 1 XRP channel, makes 20 off-ledger calls (200 each)</p>
-  <p class="ok">one pay-per-call settles on chain ·
-    <a href="https://testnet.xrpl.org/transactions/E1679771B0653E495FED0A486DB0455C5FC48735925AC5828B69C3B1DBAA464E">Payment tx</a></p>
-  <p class="ok">usage shows 21 calls / 0.21 XRP; SSE feed streamed all 21 settlements</p>
-  <p class="ok">manual redeem claims 0.2 XRP on chain ·
-    <a href="https://testnet.xrpl.org/transactions/6720E1AFC1C50771ECD047DFAEB097DAF00F21A7CE7250F2DC5A1ED2D3C88E63">PaymentChannelClaim tx</a></p>
-  <p class="ok">seller payout recorded and PAID on chain (0.2 XRP forwarded)</p>
-  <p class="ok">a non-owner cannot redeem the channel (403)</p>
-  <p class="ok">every gateway-submitted tx carries the source tag</p>
-</div>
+      <h2 id="verified">8 · Verified test run (what "working" looks like)</h2>
+      <p>
+        This exact flow was executed against <strong>XRPL testnet</strong> on 2026-07-17 with the
+        real gateway, real middleware, and the real agent. All <strong>21 checks passed</strong>;
+        the on-chain transactions are publicly visible:
+      </p>
+      <div class="panel">
+        <p class="ok">gateway /health responds</p>
+        <p class="ok">admin sign-in issues a session token (sign-in-with-XRPL)</p>
+        <p class="ok">verify with a wrong nonce is rejected 401</p>
+        <p class="ok">admin registers a seller (price 0.01 XRP, setup BOTH)</p>
+        <p class="ok">seller list requires auth; public lookup exposes channelDestination</p>
+        <p class="ok">usage starts at zero; another wallet reading your usage gets 404</p>
+        <p class="ok">facilitator /challenge returns both accepts[] modes</p>
+        <p class="ok">settle with a fake tx hash is REJECTED</p>
+        <p class="ok">auth endpoints rate limit (429)</p>
+        <p class="ok">unpaid request to the seller API answers 402 with accepts[]</p>
+        <p class="ok">agent opens a 1 XRP channel, makes 20 off-ledger calls (200 each)</p>
+        <p class="ok">
+          one pay-per-call settles on chain ·
+          <a
+            href="https://testnet.xrpl.org/transactions/E1679771B0653E495FED0A486DB0455C5FC48735925AC5828B69C3B1DBAA464E"
+            >Payment tx</a
+          >
+        </p>
+        <p class="ok">usage shows 21 calls / 0.21 XRP; SSE feed streamed all 21 settlements</p>
+        <p class="ok">
+          manual redeem claims 0.2 XRP on chain ·
+          <a
+            href="https://testnet.xrpl.org/transactions/6720E1AFC1C50771ECD047DFAEB097DAF00F21A7CE7250F2DC5A1ED2D3C88E63"
+            >PaymentChannelClaim tx</a
+          >
+        </p>
+        <p class="ok">seller payout recorded and PAID on chain (0.2 XRP forwarded)</p>
+        <p class="ok">a non-owner cannot redeem the channel (403)</p>
+        <p class="ok">every gateway-submitted tx carries the source tag</p>
+      </div>
 
-<h3>Run the same checks yourself</h3>
-<ol>
-  <li><strong>Full demo</strong>: <code>pnpm demo</code> (needs Docker). Expect the agent log to end with an explorer link and the dashboard URL.</li>
-  <li><strong>Admin spot-checks</strong> while it runs (replace <code>$SELLER</code> and <code>$TOKEN</code> from the demo output):
-<pre><code>curl -s localhost:8402/health
+      <h3>Run the same checks yourself</h3>
+      <ol>
+        <li>
+          <strong>Full demo</strong>: <code>pnpm demo</code> (needs Docker). Expect the agent log to
+          end with an explorer link and the dashboard URL.
+        </li>
+        <li>
+          <strong>Admin spot-checks</strong> while it runs (replace <code>$SELLER</code> and
+          <code>$TOKEN</code> from the demo output):
+          <pre><code>curl -s localhost:8402/health
 curl -s -X POST localhost:8402/challenge -H 'content-type: application/json' \
      -d '{"sellerId":"'$SELLER'","resource":"/data"}'          <span class="c"># 402 requirements</span>
 curl -s localhost:8403/data                                     <span class="c"># 402 from the seller API</span>
 curl -s "localhost:8402/usage/summary?sellerId=$SELLER" \
      -H "authorization: Bearer $TOKEN"                          <span class="c"># revenue + calls</span>
 curl -s -X POST localhost:8402/channels/$CHANNEL/redeem \
-     -H "authorization: Bearer $TOKEN"                          <span class="c"># on-chain redeem</span></code></pre></li>
-  <li><strong>Source-tag audit</strong>: <code>pnpm audit:source-tag</code> exits non-zero if any gateway-submitted tx is missing the configured tag.</li>
-  <li><strong>Dashboard</strong>: open the printed <code>#token=</code> URL, confirm revenue tiles, per-wallet spend, and the LIVE feed pulse as calls land.</li>
-</ol>
+     -H "authorization: Bearer $TOKEN"                          <span class="c"># on-chain redeem</span></code></pre>
+        </li>
+        <li>
+          <strong>Source-tag audit</strong>: <code>pnpm audit:source-tag</code> exits non-zero if
+          any gateway-submitted tx is missing the configured tag.
+        </li>
+        <li>
+          <strong>Dashboard</strong>: open the printed <code>#token=</code> URL, confirm revenue
+          tiles, per-wallet spend, and the LIVE feed pulse as calls land.
+        </li>
+      </ol>
 
-<h2 id="ops">9 · Operations notes</h2>
-<ul>
-  <li><strong>Maintenance sweep</strong> (every 5 minutes, automatic): reconciles channels stranded mid-redemption against the ledger, retries owed seller payouts (5 attempts, then parked for an operator), resolves ambiguous sends from the ledger so a seller is never double-paid, and prunes expired challenges.</li>
-  <li><strong>Payout lifecycle</strong>: redemption writes the owed cut in the same DB transaction as the watermark; the payout row moves PENDING → SENDING → PAID with the tx hash persisted before submission, so crashes are recoverable from the ledger.</li>
-  <li><strong>Mainnet</strong>: the demo forces testnet. For mainnet, start packages individually with <code>XRPL_NETWORK=MAINNET</code>, a funded <code>GATEWAY_XRPL_SEED</code>, and the mainnet <code>RLUSD_ISSUER</code>.</li>
-  <li><strong>Behind a proxy</strong>: set <code>TRUST_PROXY=true</code> so per-IP rate limits key on the real client address.</li>
-</ul>
+      <h2 id="ops">9 · Operations notes</h2>
+      <ul>
+        <li>
+          <strong>Maintenance sweep</strong> (every 5 minutes, automatic): reconciles channels
+          stranded mid-redemption against the ledger, retries owed seller payouts (5 attempts, then
+          parked for an operator), resolves ambiguous sends from the ledger so a seller is never
+          double-paid, and prunes expired challenges.
+        </li>
+        <li>
+          <strong>Payout lifecycle</strong>: redemption writes the owed cut in the same DB
+          transaction as the watermark; the payout row moves PENDING → SENDING → PAID with the tx
+          hash persisted before submission, so crashes are recoverable from the ledger.
+        </li>
+        <li>
+          <strong>Mainnet</strong>: the demo forces testnet. For mainnet, start packages
+          individually with <code>XRPL_NETWORK=MAINNET</code>, a funded
+          <code>GATEWAY_XRPL_SEED</code>, and the mainnet <code>RLUSD_ISSUER</code>.
+        </li>
+        <li>
+          <strong>Behind a proxy</strong>: set <code>TRUST_PROXY=true</code> so per-IP rate limits
+          key on the real client address.
+        </li>
+      </ul>
 
-<h2 id="troubleshooting">10 · Troubleshooting</h2>
-<div class="scroll">
-<table>
-  <tr><th>Symptom</th><th>Likely cause / fix</th></tr>
-  <tr><td><code>make up</code> fails to connect to Docker</td><td>Docker Desktop is not running; start it and retry. Postgres and Redis must be reachable before <code>pnpm demo</code>.</td></tr>
-  <tr><td>Faucet funding hangs</td><td>Testnet faucet is flaky under load; re-run the demo.</td></tr>
-  <tr><td><code>429 too many requests</code></td><td>Per-IP rate limit (auth 30/min, challenge 600/min, registration 60/min). Wait a minute or set <code>TRUST_PROXY</code> correctly behind a proxy.</td></tr>
-  <tr><td><code>challenge has expired</code></td><td>Challenges live 5 minutes; request a fresh 402 and pay that nonce.</td></tr>
-  <tr><td><code>channel ledger state does not match...</code></td><td>The on-ledger channel diverged from registered state (e.g. balance moved outside the gateway). Wait one maintenance sweep for reconciliation, or open a fresh channel.</td></tr>
-  <tr><td><code>channel is at or near its expiry</code></td><td>By design: claims stop being honored near CancelAfter so delivered value can be redeemed first. Open a new channel.</td></tr>
-  <tr><td>402 keeps coming back to the agent</td><td>Check <code>maxAmount</code> ceiling vs the seller price, the wallet balance, and that <code>payload.payer</code> matches the paying wallet.</td></tr>
-</table>
-</div>
+      <h2 id="troubleshooting">10 · Troubleshooting</h2>
+      <div class="scroll">
+        <table>
+          <tr>
+            <th>Symptom</th>
+            <th>Likely cause / fix</th>
+          </tr>
+          <tr>
+            <td><code>make up</code> fails to connect to Docker</td>
+            <td>
+              Docker Desktop is not running; start it and retry. Postgres and Redis must be
+              reachable before <code>pnpm demo</code>.
+            </td>
+          </tr>
+          <tr>
+            <td>Faucet funding hangs</td>
+            <td>Testnet faucet is flaky under load; re-run the demo.</td>
+          </tr>
+          <tr>
+            <td><code>429 too many requests</code></td>
+            <td>
+              Per-IP rate limit (auth 30/min, challenge 600/min, registration 60/min). Wait a minute
+              or set <code>TRUST_PROXY</code> correctly behind a proxy.
+            </td>
+          </tr>
+          <tr>
+            <td><code>challenge has expired</code></td>
+            <td>Challenges live 5 minutes; request a fresh 402 and pay that nonce.</td>
+          </tr>
+          <tr>
+            <td><code>channel ledger state does not match...</code></td>
+            <td>
+              The on-ledger channel diverged from registered state (e.g. balance moved outside the
+              gateway). Wait one maintenance sweep for reconciliation, or open a fresh channel.
+            </td>
+          </tr>
+          <tr>
+            <td><code>channel is at or near its expiry</code></td>
+            <td>
+              By design: claims stop being honored near CancelAfter so delivered value can be
+              redeemed first. Open a new channel.
+            </td>
+          </tr>
+          <tr>
+            <td>402 keeps coming back to the agent</td>
+            <td>
+              Check <code>maxAmount</code> ceiling vs the seller price, the wallet balance, and that
+              <code>payload.payer</code> matches the paying wallet.
+            </td>
+          </tr>
+        </table>
+      </div>
 
-<footer>
-  XRPL x402 Gateway · usage &amp; test guide · verified against XRPL testnet on 2026-07-17 ·
-  see <code>README.md</code>, <code>DEMO.md</code>, and <code>AGENTS.md</code> in the repo for deeper reference.
-</footer>
-
-</div>
-</body>
+      <footer>
+        XRPL x402 Gateway · usage &amp; test guide · verified against XRPL testnet on 2026-07-17 ·
+        see <code>README.md</code>, <code>DEMO.md</code>, and <code>AGENTS.md</code> in the repo for
+        deeper reference.
+      </footer>
+    </div>
+  </body>
 </html>

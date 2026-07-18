@@ -18,10 +18,7 @@ const previewAllowedHosts = [
 // `xrpl` / `xrpl-connect` expect Node globals (Buffer/global/process) in the
 // browser bundle — the polyfill plugin provides them.
 export default defineConfig({
-  plugins: [
-    react(),
-    nodePolyfills({ globals: { Buffer: true, global: true } }),
-  ],
+  plugins: [react(), nodePolyfills({ globals: { Buffer: true, global: true } })],
   server: {
     port: 5173,
   },

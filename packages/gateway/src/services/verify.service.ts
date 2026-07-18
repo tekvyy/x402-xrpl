@@ -92,9 +92,7 @@ function isIssuedAmount(value: unknown): value is IssuedAmount {
 /** Prefer the metadata's actual delivered amount; fall back to the tx Amount. */
 function deliveredAmount(tx: RawTx): unknown {
   const meta = (tx.meta ?? tx.meta_data) as
-    | { delivered_amount?: unknown; DeliveredAmount?: unknown }
-    | string
-    | undefined;
+    { delivered_amount?: unknown; DeliveredAmount?: unknown } | string | undefined;
   if (meta && typeof meta === 'object') {
     return meta.delivered_amount ?? meta.DeliveredAmount ?? tx.Amount;
   }
@@ -140,7 +138,8 @@ export async function verifyPayPerCall(
   if (tx.TransactionType !== 'Payment') return fail('referenced transaction is not a Payment');
   if (tx.Destination !== ctx.payTo) return fail('payment destination does not match seller');
   if (!tx.Account) return fail('transaction has no sender');
-  if (payload.payer !== tx.Account) return fail('claimed payer does not match the on-ledger sender');
+  if (payload.payer !== tx.Account)
+    return fail('claimed payer does not match the on-ledger sender');
   if (!memoContainsNonce(tx, ctx.nonce)) return fail('challenge nonce missing from tx memo');
 
   const delivered = deliveredAmount(tx);

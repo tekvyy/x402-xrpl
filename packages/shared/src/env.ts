@@ -13,7 +13,9 @@ const EnvSchema = z.object({
   XRPL_ENDPOINT: z.string().url().optional(),
   GATEWAY_XRPL_SEED: z.string().min(1, 'GATEWAY_XRPL_SEED is required'),
   // Secret used to sign stateless dashboard session (JWT-style HMAC) tokens.
-  AUTH_SECRET: z.string().min(16, 'AUTH_SECRET must be at least 16 characters'),
+  // Require at least 256 bits when generated as hexadecimal (64 chars) and a
+  // meaningful floor for other encodings; operators should use a CSPRNG.
+  AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
   SOURCE_TAG: z.coerce.number().int().nonnegative(),
   RLUSD_ISSUER: z.string().min(1, 'RLUSD_ISSUER is required'),
   DATABASE_URL: z.string().url(),

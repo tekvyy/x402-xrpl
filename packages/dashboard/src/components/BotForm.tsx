@@ -139,7 +139,11 @@ export function BotForm({ token, onCreated, onUnauthorized }: BotFormProps): JSX
         </label>
         <label className="field field-narrow">
           <span>Resource path</span>
-          <input value={form.resource} onChange={(e) => set('resource', e.target.value)} placeholder="/data" />
+          <input
+            value={form.resource}
+            onChange={(e) => set('resource', e.target.value)}
+            placeholder="/data"
+          />
         </label>
         <label className="field field-narrow">
           <span>Max / call</span>

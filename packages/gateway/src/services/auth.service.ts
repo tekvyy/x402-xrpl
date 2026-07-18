@@ -75,8 +75,7 @@ export interface VerifyAuthInput {
 }
 
 export type AuthVerifyOutcome =
-  | { ok: true; response: AuthVerifyResponse }
-  | { ok: false; reason: string };
+  { ok: true; response: AuthVerifyResponse } | { ok: false; reason: string };
 
 /**
  * Verify a signed challenge and, on success, mint a session token. The challenge
@@ -229,7 +228,9 @@ export function verifyToken(
 
 /** Mint a `<payload>.<hmac>` token binding an address to an expiry. */
 function signToken(authSecret: string, address: string, expiresAt: number): string {
-  const payload = toBase64Url(Buffer.from(JSON.stringify({ sub: address, exp: expiresAt }), 'utf8'));
+  const payload = toBase64Url(
+    Buffer.from(JSON.stringify({ sub: address, exp: expiresAt }), 'utf8'),
+  );
   const signature = toBase64Url(hmac(authSecret, payload));
   return `${payload}.${signature}`;
 }

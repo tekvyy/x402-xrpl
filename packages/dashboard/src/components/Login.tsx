@@ -78,7 +78,8 @@ export function Login({ onAuthenticated, onBack }: LoginProps): JSX.Element {
           ))}
         </div>
         <p className="login-hint">
-          You&apos;ll sign a one-time challenge — no transaction is submitted and no fees are charged.
+          You&apos;ll sign a one-time challenge — no transaction is submitted and no fees are
+          charged.
         </p>
 
         {error && <p className="login-error">{error}</p>}

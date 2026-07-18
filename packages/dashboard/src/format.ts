@@ -39,6 +39,24 @@ export function shortenAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+/** Compare non-negative plain decimal strings without losing precision to Number. */
+export function compareDecimalStrings(a: string, b: string): -1 | 0 | 1 {
+  const [aWhole = '0', aFraction = ''] = a.split('.');
+  const [bWhole = '0', bFraction = ''] = b.split('.');
+  const normalizedAWhole = aWhole.replace(/^0+(?=\d)/, '');
+  const normalizedBWhole = bWhole.replace(/^0+(?=\d)/, '');
+  if (normalizedAWhole.length !== normalizedBWhole.length) {
+    return normalizedAWhole.length < normalizedBWhole.length ? -1 : 1;
+  }
+  if (normalizedAWhole !== normalizedBWhole) return normalizedAWhole < normalizedBWhole ? -1 : 1;
+
+  const width = Math.max(aFraction.length, bFraction.length);
+  const normalizedAFraction = aFraction.padEnd(width, '0');
+  const normalizedBFraction = bFraction.padEnd(width, '0');
+  if (normalizedAFraction === normalizedBFraction) return 0;
+  return normalizedAFraction < normalizedBFraction ? -1 : 1;
+}
+
 /** Shorten a transaction hash to `ABCD…WXYZ`. */
 export function shortenHash(hash: string): string {
   if (hash.length <= 12) return hash;

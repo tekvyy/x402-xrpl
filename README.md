@@ -21,15 +21,15 @@ Every wire message follows the [x402 v1 specification](https://github.com/coinba
 exactly. XRPL is carried as two payment schemes on the `xrpl` / `xrpl-testnet`
 networks:
 
-| Spec primitive | This implementation |
-| --- | --- |
+| Spec primitive                                  | This implementation                                                                                                                                                                                                     |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `402` body: `{ x402Version, error, accepts[] }` | Same, with all required `PaymentRequirements` fields (`scheme`, `network`, `maxAmountRequired`, `asset`, `payTo`, `resource`, `description`, `maxTimeoutSeconds`); the challenge nonce and RLUSD issuer ride in `extra` |
-| `scheme` | `exact` = direct XRPL `Payment` proven by tx hash (pay-per-call); `paychan` = off-ledger signed PayChan claim (prepaid credits, the XRPL-native analog of EIP-3009 authorizations) |
-| `network` | `xrpl` (mainnet) / `xrpl-testnet` (CAIP-2 ids `xrpl:0` / `xrpl:1` reserved for the v2 transport) |
-| `X-PAYMENT` header | Spec envelope `{ x402Version, scheme, network, payload }`, base64 JSON; the `payload` object is scheme-defined |
-| `X-PAYMENT-RESPONSE` header | Spec `SettlementResponse` `{ success, errorReason?, transaction, network, payer }` (+ a non-spec `explorerUrl` convenience field) |
-| Facilitator `POST /verify`, `POST /settle` | Spec bodies `{ x402Version, paymentPayload, paymentRequirements }`; spec responses `{ isValid, invalidReason?, payer }` and `{ success, errorReason?, transaction, network, payer }` |
-| Facilitator `GET /supported` | `{ kinds: [{ x402Version, scheme, network }] }` for both schemes on the configured network |
+| `scheme`                                        | `exact` = direct XRPL `Payment` proven by tx hash (pay-per-call); `paychan` = off-ledger signed PayChan claim (prepaid credits, the XRPL-native analog of EIP-3009 authorizations)                                      |
+| `network`                                       | `xrpl` (mainnet) / `xrpl-testnet` (CAIP-2 ids `xrpl:0` / `xrpl:1` reserved for the v2 transport)                                                                                                                        |
+| `X-PAYMENT` header                              | Spec envelope `{ x402Version, scheme, network, payload }`, base64 JSON; the `payload` object is scheme-defined                                                                                                          |
+| `X-PAYMENT-RESPONSE` header                     | Spec `SettlementResponse` `{ success, errorReason?, transaction, network, payer }` (+ a non-spec `explorerUrl` convenience field)                                                                                       |
+| Facilitator `POST /verify`, `POST /settle`      | Spec bodies `{ x402Version, paymentPayload, paymentRequirements }`; spec responses `{ isValid, invalidReason?, payer }` and `{ success, errorReason?, transaction, network, payer }`                                    |
+| Facilitator `GET /supported`                    | `{ kinds: [{ x402Version, scheme, network }] }` for both schemes on the configured network                                                                                                                              |
 
 One non-spec convenience endpoint remains: `POST /challenge`, which the server
 middleware uses to have the gateway issue nonce-bound challenges (replay
@@ -61,7 +61,7 @@ AI Agent / Client ──(x402fetch: handles 402, pays, retries)──► SELLER'
 
 The seller's API stays in the seller's hands — the middleware answers `402`
 for unpaid requests and lets paid ones through, delegating every x402
-decision to the gateway. Because payment is enforced *in* the seller's server,
+decision to the gateway. Because payment is enforced _in_ the seller's server,
 there is no separate unmetered origin URL to leak or bypass.
 
 ### Two payment modes
@@ -83,7 +83,7 @@ setup. Credits setups require XRP pricing (PayChan is XRP-native).
 
 ### Known limitations
 
-PayChan is x402's *shape* on XRPL, not EIP-3009's *economics*. Two consequences
+PayChan is x402's _shape_ on XRPL, not EIP-3009's _economics_. Two consequences
 a caller should plan around:
 
 - **Per-seller capital lockup.** Unlike an EIP-3009 authorization drawn from one
@@ -105,14 +105,14 @@ pulled before a channel can be closed and its deposit reclaimed.
 
 pnpm workspaces, TypeScript (NodeNext, strict). Each package is `@app/<name>`.
 
-| Package | Role |
-| --- | --- |
-| `shared` | Types, enums, constants, x402 payload schemas (zod), `loadEnv()` |
-| `gateway` | Node/Fastify gateway service — x402 facilitator + dashboard API |
-| `sdk-client` | `x402fetch` + wallet/payment/channel helpers |
-| `sdk-server` | Express/Fastify server middleware (delegates to the gateway) |
-| `dashboard` | Vite + React seller dashboard |
-| `agent-demo` | AI agent demo — pays per call via an MCP-style tool |
+| Package       | Role                                                                          |
+| ------------- | ----------------------------------------------------------------------------- |
+| `shared`      | Types, enums, constants, x402 payload schemas (zod), `loadEnv()`              |
+| `gateway`     | Node/Fastify gateway service — x402 facilitator + dashboard API               |
+| `sdk-client`  | `x402fetch` + wallet/payment/channel helpers                                  |
+| `sdk-server`  | Express/Fastify server middleware (delegates to the gateway)                  |
+| `dashboard`   | Vite + React seller dashboard                                                 |
+| `agent-demo`  | AI agent demo — pays per call via an MCP-style tool                           |
 | `demo-origin` | Demo seller API — its `/data` route is metered by the `sdk-server` middleware |
 
 ## Quick start
@@ -184,20 +184,20 @@ gateway seller registration (single source of truth).
 
 Copy `.env.example` to `.env`. Key vars:
 
-| Var | Purpose |
-| --- | --- |
-| `XRPL_NETWORK` | `MAINNET` \| `TESTNET` |
-| `XRPL_ENDPOINT` | Override JSON-RPC/WebSocket endpoint (optional) |
-| `GATEWAY_XRPL_SEED` | Gateway wallet seed (funds settlements, redeems channels) |
-| `AUTH_SECRET` | Signs dashboard session tokens (≥ 16 chars) |
-| `SOURCE_TAG` | Stamped on every gateway-submitted XRPL tx |
-| `RLUSD_ISSUER` | RLUSD issuer classic address for the selected network |
-| `DATABASE_URL` | Postgres — durable ledger/usage/sellers |
-| `REDIS_URL` | Redis — rate limit, sign-in challenges, live-feed pub/sub |
-| `GATEWAY_PORT` | Gateway HTTP port (default `8402`) |
-| `DASHBOARD_ORIGIN` | Allowed dashboard origin (CORS) |
-| `ESCROW_ENABLED` | Custodial escrow-credits fallback (default `false`; the authentic path is PayChan) |
-| `PLATFORM_FEE_BPS` | Platform fee in basis points on the PayChan credits path (default `0` = off). When set, channels open to the gateway, which redeems on chain and forwards the seller's cut minus the fee. |
+| Var                 | Purpose                                                                                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `XRPL_NETWORK`      | `MAINNET` \| `TESTNET`                                                                                                                                                                    |
+| `XRPL_ENDPOINT`     | Override JSON-RPC/WebSocket endpoint (optional)                                                                                                                                           |
+| `GATEWAY_XRPL_SEED` | Gateway wallet seed (funds settlements, redeems channels)                                                                                                                                 |
+| `AUTH_SECRET`       | Signs dashboard session tokens (≥ 16 chars)                                                                                                                                               |
+| `SOURCE_TAG`        | Stamped on every gateway-submitted XRPL tx                                                                                                                                                |
+| `RLUSD_ISSUER`      | RLUSD issuer classic address for the selected network                                                                                                                                     |
+| `DATABASE_URL`      | Postgres — durable ledger/usage/sellers                                                                                                                                                   |
+| `REDIS_URL`         | Redis — rate limit, sign-in challenges, live-feed pub/sub                                                                                                                                 |
+| `GATEWAY_PORT`      | Gateway HTTP port (default `8402`)                                                                                                                                                        |
+| `DASHBOARD_ORIGIN`  | Allowed dashboard origin (CORS)                                                                                                                                                           |
+| `ESCROW_ENABLED`    | Custodial escrow-credits fallback (default `false`; the authentic path is PayChan)                                                                                                        |
+| `PLATFORM_FEE_BPS`  | Platform fee in basis points on the PayChan credits path (default `0` = off). When set, channels open to the gateway, which redeems on chain and forwards the seller's cut minus the fee. |
 
 ### Mainnet vs testnet
 
