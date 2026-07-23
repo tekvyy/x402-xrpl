@@ -693,6 +693,34 @@ export interface WalletUsage {
   spend: string;
 }
 
+/**
+ * One page of a seller's settled calls, newest first. `before` is the keyset
+ * cursor (the last row of the previous page); omitted for the first page.
+ */
+export async function listUsageEvents(
+  db: Queryable,
+  sellerId: string,
+  limit: number,
+  before?: { createdAt: Date; id: string },
+): Promise<UsageEventRow[]> {
+  const { rows } = before
+    ? await db.query<UsageEventRow>(
+        `SELECT * FROM usage_events
+         WHERE seller_id = $1 AND (created_at, id) < ($2, $3)
+         ORDER BY created_at DESC, id DESC
+         LIMIT $4`,
+        [sellerId, before.createdAt, before.id, limit],
+      )
+    : await db.query<UsageEventRow>(
+        `SELECT * FROM usage_events
+         WHERE seller_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT $2`,
+        [sellerId, limit],
+      );
+  return rows;
+}
+
 /** Per-wallet call count and spend for a seller, biggest spender first. */
 export async function getUsageByWallet(db: Queryable, sellerId: string): Promise<WalletUsage[]> {
   const { rows } = await db.query<{ wallet_address: string; calls: number; spend: string }>(

@@ -15,6 +15,7 @@ import { SummaryCards } from './SummaryCards.js';
 import { TopEndpoints } from './TopEndpoints.js';
 import { WalletTable } from './WalletTable.js';
 import { LiveFeed } from './LiveFeed.js';
+import { HistoryFeed } from './HistoryFeed.js';
 import { CardSkeleton, EmptyState, ErrorBanner, Spinner } from './States.js';
 
 interface SellerTabProps {
@@ -103,6 +104,12 @@ export function SellerTab({ token, onUnauthorized }: SellerTabProps): JSX.Elemen
                 <WalletTable wallets={data.wallets} />
               </div>
               <LiveFeed events={events} status={status} />
+              <HistoryFeed
+                onUnauthorized={onUnauthorized}
+                refreshKey={events.length}
+                sellerId={selected}
+                token={token}
+              />
             </>
           ) : null}
         </>

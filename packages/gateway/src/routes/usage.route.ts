@@ -5,6 +5,7 @@
  *   GET  /usage/summary       → revenue per asset, total calls, active wallets
  *   GET  /usage/top-endpoints → busiest endpoints
  *   GET  /usage/by-wallet     → per-wallet call count + spend
+ *   GET  /usage/history       → paginated audit history of settled calls
  *   GET  /usage/stream        → SSE live feed of settlements (Redis pub/sub)
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -16,8 +17,10 @@ import {
   getTopEndpoints,
   getUsageByWallet,
   getUsageSummary,
+  listUsageEvents,
 } from '../db/repositories.js';
 import { verify } from '../services/settle.service.js';
+import { decodeAuditCursor, encodeAuditCursor } from '../services/audit.service.js';
 import { usageChannelName } from '../services/usage.service.js';
 import { verifyToken } from '../services/auth.service.js';
 import { requireAuth } from './authenticate.js';
@@ -26,6 +29,13 @@ import { rateLimitByIp } from '../util/rate-limit.js';
 import type { GatewayDeps } from '../deps.js';
 
 const SellerQuerySchema = z.object({ sellerId: z.string().uuid() });
+
+/** `GET /usage/history` query: page size plus the previous page's cursor. */
+const HistoryQuerySchema = z.object({
+  sellerId: z.string().uuid(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  before: z.string().min(1).optional(),
+});
 
 /**
  * The SSE stream is opened by the browser's `EventSource`, which cannot set an
@@ -91,6 +101,41 @@ export function registerUsageRoutes(app: FastifyInstance, deps: GatewayDeps): vo
     // A gateway-side fault (ledger connection down) is a 503, not a verdict
     // on the payment: the payer should retry the same X-PAYMENT.
     return reply.code(outcome.unavailable ? 503 : 200).send(body);
+  });
+
+  // Paginated audit history of every settled call, straight from usage_events.
+  // Same wire shape as the SSE feed events so the dashboard renders both alike.
+  app.get('/usage/history', { preHandler: auth }, async (request, reply) => {
+    const sellerId = await authorizeSellerQuery(deps, request, reply);
+    if (!sellerId) return reply;
+    const parsed = HistoryQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid history query', issues: parsed.error.issues });
+    }
+    let before: { createdAt: Date; id: string } | undefined;
+    if (parsed.data.before) {
+      const cursor = decodeAuditCursor(parsed.data.before);
+      if (!cursor) return reply.code(400).send({ error: 'invalid history cursor' });
+      before = cursor;
+    }
+    const rows = await listUsageEvents(deps.pool, sellerId, parsed.data.limit, before);
+    // A short page means the table is exhausted; only a full page gets a cursor.
+    const last = rows.length === parsed.data.limit ? rows[rows.length - 1] : undefined;
+    return reply.send({
+      events: rows.map((row) => ({
+        id: row.id,
+        sellerId: row.seller_id,
+        walletAddress: row.wallet_address,
+        endpoint: row.endpoint,
+        amount: row.amount,
+        asset: row.asset,
+        mode: row.mode,
+        network: row.network,
+        txHash: row.tx_hash,
+        timestamp: row.created_at.toISOString(),
+      })),
+      nextCursor: last ? encodeAuditCursor({ createdAt: last.created_at, id: last.id }) : null,
+    });
   });
 
   app.get('/usage/summary', { preHandler: auth }, async (request, reply) => {

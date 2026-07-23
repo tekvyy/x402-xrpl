@@ -7,12 +7,57 @@ import type { UsageStreamEvent } from '../api.js';
 import type { FeedStatus } from '../hooks/useLiveFeed.js';
 import {
   formatAmount,
+  formatDateTime,
   formatTime,
   paymentModeLabel,
   shortenAddress,
   shortenHash,
 } from '../format.js';
 import { EmptyState } from './States.js';
+
+/** One settlement row, shared by the live feed and the history panel. */
+export function FeedRow({
+  event,
+  showDate = false,
+}: {
+  event: UsageStreamEvent;
+  showDate?: boolean;
+}): JSX.Element {
+  return (
+    <li className="feed-row">
+      <span className="feed-time">
+        {showDate ? formatDateTime(event.timestamp) : formatTime(event.timestamp)}
+      </span>
+      <span className="feed-main">
+        <span className="mono feed-wallet" title={event.walletAddress}>
+          {shortenAddress(event.walletAddress)}
+        </span>
+        <span className="feed-endpoint" title={event.endpoint}>
+          {event.endpoint}
+        </span>
+      </span>
+      <span className={`chip chip-${event.mode.toLowerCase()}`}>
+        {paymentModeLabel(event.mode)}
+      </span>
+      <span className="feed-amount">{formatAmount(event.amount, event.asset)}</span>
+      {event.txHash ? (
+        <a
+          className="feed-tx"
+          href={explorerTxUrl(event.network, event.txHash)}
+          target="_blank"
+          rel="noreferrer"
+          title={event.txHash}
+        >
+          {shortenHash(event.txHash)} ↗
+        </a>
+      ) : (
+        <span className="feed-tx feed-tx-offledger" title="Off-ledger credit claim">
+          off-ledger
+        </span>
+      )}
+    </li>
+  );
+}
 
 interface LiveFeedProps {
   events: UsageStreamEvent[];
@@ -39,36 +84,7 @@ export function LiveFeed({ events, status }: LiveFeedProps): JSX.Element {
       ) : (
         <ul className="feed-list">
           {events.map((event) => (
-            <li className="feed-row" key={event.id}>
-              <span className="feed-time">{formatTime(event.timestamp)}</span>
-              <span className="feed-main">
-                <span className="mono feed-wallet" title={event.walletAddress}>
-                  {shortenAddress(event.walletAddress)}
-                </span>
-                <span className="feed-endpoint" title={event.endpoint}>
-                  {event.endpoint}
-                </span>
-              </span>
-              <span className={`chip chip-${event.mode.toLowerCase()}`}>
-                {paymentModeLabel(event.mode)}
-              </span>
-              <span className="feed-amount">{formatAmount(event.amount, event.asset)}</span>
-              {event.txHash ? (
-                <a
-                  className="feed-tx"
-                  href={explorerTxUrl(event.network, event.txHash)}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={event.txHash}
-                >
-                  {shortenHash(event.txHash)} ↗
-                </a>
-              ) : (
-                <span className="feed-tx feed-tx-offledger" title="Off-ledger credit claim">
-                  off-ledger
-                </span>
-              )}
-            </li>
+            <FeedRow event={event} key={event.id} />
           ))}
         </ul>
       )}

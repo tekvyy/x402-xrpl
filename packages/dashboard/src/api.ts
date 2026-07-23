@@ -160,6 +160,24 @@ export async function fetchByWallet(
   return data.wallets;
 }
 
+/** `GET /usage/history` page: settled calls, newest first, keyset cursor. */
+export interface UsageHistoryPage {
+  events: UsageStreamEvent[];
+  /** Cursor for the next (older) page; null when the history is exhausted. */
+  nextCursor: string | null;
+}
+
+export function fetchHistory(
+  token: string,
+  sellerId: string,
+  cursor?: string,
+  signal?: AbortSignal,
+): Promise<UsageHistoryPage> {
+  const params = new URLSearchParams({ sellerId });
+  if (cursor) params.set('before', cursor);
+  return authed<UsageHistoryPage>(`/usage/history?${params.toString()}`, token, { signal });
+}
+
 /**
  * Full SSE URL for a seller's live usage stream. The session token rides in a
  * query param because `EventSource` cannot send an `Authorization` header.
