@@ -115,6 +115,45 @@ function memoContainsNonce(tx: RawTx, nonce: string): boolean {
 }
 
 /**
+ * Delays between `tx` lookup attempts. A payer's `submitAndWait` resolves when
+ * *their* rippled server sees the validated ledger; the gateway's own server
+ * (often a different member of a load-balanced cluster) can lag by a ledger or
+ * two. Absorb that propagation window here rather than rejecting a payment
+ * that is already final — a rejected challenge can expire before the payer's
+ * retry, stranding real funds.
+ */
+const TX_VISIBILITY_RETRY_DELAYS_MS = [1500, 2000, 2500];
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Fetch a transaction, tolerating propagation lag: `txnNotFound` and
+ * not-yet-validated responses are retried briefly before giving up. Only
+ * visibility is retried — any other failure surfaces immediately.
+ */
+async function fetchValidatedTx(xrpl: XrplService, txHash: string): Promise<RawTx | VerifyErr> {
+  let seen = false;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await xrpl.getTransaction(txHash);
+      const tx = unwrapTxResult(response.result);
+      seen = true;
+      if (tx.validated === true) return tx;
+    } catch {
+      // txnNotFound (or a transient transport error) — retry below.
+    }
+    if (attempt >= TX_VISIBILITY_RETRY_DELAYS_MS.length) {
+      return fail(
+        seen
+          ? 'transaction is not yet validated; retry with the same X-PAYMENT, do not pay again'
+          : 'transaction could not be found on the ledger; if it is validated, retry with the same X-PAYMENT, do not pay again',
+      );
+    }
+    await sleep(TX_VISIBILITY_RETRY_DELAYS_MS[attempt] ?? 0);
+  }
+}
+
+/**
  * Verify a pay-per-call payment. Reads the referenced transaction from the
  * ledger and checks asset, destination, amount, nonce memo, and validation.
  */
@@ -126,15 +165,8 @@ export async function verifyPayPerCall(
   if (payload.asset !== ctx.requiredAsset) return fail('asset does not match the challenge');
   if (payload.nonce !== ctx.nonce) return fail('nonce does not match the challenge');
 
-  let response;
-  try {
-    response = await xrpl.getTransaction(payload.txHash);
-  } catch {
-    return fail('transaction could not be found on the ledger');
-  }
-
-  const tx = unwrapTxResult(response.result);
-  if (tx.validated !== true) return fail('transaction is not yet validated');
+  const tx = await fetchValidatedTx(xrpl, payload.txHash);
+  if ('ok' in tx) return tx;
   if (tx.TransactionType !== 'Payment') return fail('referenced transaction is not a Payment');
   if (tx.Destination !== ctx.payTo) return fail('payment destination does not match seller');
   if (!tx.Account) return fail('transaction has no sender');

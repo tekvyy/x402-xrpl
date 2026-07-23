@@ -216,6 +216,12 @@ non-402 response. The gateway redeems the accumulated total on chain later.
 
 - Every nonce is single-use and expires after \`maxTimeoutSeconds\`. On a new
   402, use the new nonce and never replay an old payment.
+- If verification fails with "transaction could not be found" or "not yet
+  validated", that is ledger propagation lag: your node saw the validated
+  ledger before the facilitator's did. Wait 2-3 seconds and retry the same
+  request with the same \`X-PAYMENT\` (same nonce, same hash). Never pay
+  again: a failed verify does not consume the nonce, and the memo binds your
+  payment to that nonce until it expires.
 - Never pay on chain against a seller whose \`accepts[]\` offers only
   \`paychan\`: the gateway would reject the scheme after your funds moved.
   Open a channel instead.
