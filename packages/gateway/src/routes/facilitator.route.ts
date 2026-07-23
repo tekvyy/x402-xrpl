@@ -95,7 +95,9 @@ export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDep
       payer: outcome.payer ?? paymentPayload.payload.payer,
       ...(outcome.explorerUrl ? { explorerUrl: outcome.explorerUrl } : {}),
     };
-    return reply.send(body);
+    // A gateway-side fault (ledger connection down) is a 503, not a payment
+    // rejection: the payer must retry the same X-PAYMENT, not pay again.
+    return reply.code(outcome.unavailable ? 503 : 200).send(body);
   });
 
   app.get('/supported', async (_request, reply) => {

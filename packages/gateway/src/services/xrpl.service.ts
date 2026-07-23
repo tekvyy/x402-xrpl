@@ -132,6 +132,20 @@ export class XrplService {
     if (this.client.isConnected()) await this.client.disconnect();
   }
 
+  /**
+   * Tear the websocket down and dial again. `connect()` trusts
+   * `isConnected()`, which can report true on a half-dead socket that will
+   * never answer another request — the only cure is a hard reconnect.
+   */
+  private async forceReconnect(): Promise<void> {
+    try {
+      await this.client.disconnect();
+    } catch {
+      // The socket was already unusable; dialing fresh is all that matters.
+    }
+    await this.connect();
+  }
+
   /** Lazily derive the gateway's own wallet from its configured seed. */
   private getWallet(): Wallet {
     if (!this.wallet) this.wallet = Wallet.fromSeed(this.seed);
@@ -143,10 +157,21 @@ export class XrplService {
     return this.getWallet().classicAddress;
   }
 
-  /** Fetch a (hopefully validated) transaction by hash. */
+  /**
+   * Fetch a (hopefully validated) transaction by hash. An error the node
+   * actually answered with (e.g. `txnNotFound`) is rethrown as-is; a transport
+   * failure (timeout, dead socket) triggers one hard reconnect and a retry, so
+   * a wedged connection heals instead of making every lookup fail forever.
+   */
   async getTransaction(txHash: string): Promise<TxResponse> {
     await this.connect();
-    return this.client.request({ command: 'tx', transaction: txHash });
+    try {
+      return await this.client.request({ command: 'tx', transaction: txHash });
+    } catch (err) {
+      if (rippledErrorCode(err) !== undefined) throw err;
+      await this.forceReconnect();
+      return this.client.request({ command: 'tx', transaction: txHash });
+    }
   }
 
   /**

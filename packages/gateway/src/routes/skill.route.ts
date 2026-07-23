@@ -222,6 +222,12 @@ non-402 response. The gateway redeems the accumulated total on chain later.
   request with the same \`X-PAYMENT\` (same nonce, same hash). Never pay
   again: a failed verify does not consume the nonce, and the memo binds your
   payment to that nonce until it expires.
+- A \`503\` on the paid retry means the facilitator itself (or its ledger
+  connection) is down, and says nothing about your payment. The challenge's
+  expiry is extended during such faults, so keep retrying the same
+  \`X-PAYMENT\` with backoff (a few seconds, then tens of seconds). Both
+  halves of the rule again: retry the same header unchanged; never re-pay. A
+  second payment cannot settle the first nonce anyway.
 - Never pay on chain against a seller whose \`accepts[]\` offers only
   \`paychan\`: the gateway would reject the scheme after your funds moved.
   Open a channel instead.

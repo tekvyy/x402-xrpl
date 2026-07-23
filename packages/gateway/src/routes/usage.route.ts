@@ -88,7 +88,9 @@ export function registerUsageRoutes(app: FastifyInstance, deps: GatewayDeps): vo
         : { invalidReason: outcome.reason ?? X402ErrorCode.UNEXPECTED_VERIFY_ERROR }),
       payer: outcome.payer ?? paymentPayload.payload.payer,
     };
-    return reply.send(body);
+    // A gateway-side fault (ledger connection down) is a 503, not a verdict
+    // on the payment: the payer should retry the same X-PAYMENT.
+    return reply.code(outcome.unavailable ? 503 : 200).send(body);
   });
 
   app.get('/usage/summary', { preHandler: auth }, async (request, reply) => {

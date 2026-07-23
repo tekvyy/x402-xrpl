@@ -131,6 +131,25 @@ export async function getChallengeByNonce(
 }
 
 /**
+ * Push a still-PENDING challenge's expiry out to at least `minExpiry`. Used
+ * when settlement fails through a gateway-side fault (ledger connection down):
+ * the expiry clock must not burn down during an outage that is entirely ours,
+ * or the outage converts into the buyer's loss (an on-chain payment memo-bound
+ * to a nonce that can never settle). Never shortens an expiry.
+ */
+export async function extendChallengeExpiry(
+  db: Queryable,
+  id: string,
+  minExpiry: Date,
+): Promise<void> {
+  await db.query(
+    `UPDATE challenges SET expires_at = GREATEST(expires_at, $2)
+     WHERE id = $1 AND status = 'PENDING'`,
+    [id, minExpiry],
+  );
+}
+
+/**
  * Atomically transition a challenge to a terminal status, but only from an
  * still-open state. Returns the updated row, or `null` when the challenge was
  * already consumed/expired (the guard that makes each nonce single-use even

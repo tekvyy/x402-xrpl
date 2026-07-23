@@ -30,6 +30,7 @@ import type {
 } from '@app/shared';
 import {
   applyChannelClaim,
+  extendChallengeExpiry,
   getChallengeByNonce,
   getChannelByChannelId,
   getSeller,
@@ -69,9 +70,39 @@ export interface SettleOutcome {
   amount?: string;
   /** Payer's XRPL classic address, when known. */
   payer?: string;
+  /** Gateway-side fault (ledger connection down): map to 503, payer should retry. */
+  unavailable?: boolean;
 }
 
 const reject = (reason: string): SettleOutcome => ({ result: SettleResult.REJECTED, reason });
+
+/**
+ * Extra life granted to a PENDING challenge each time its settlement fails
+ * through a gateway-side fault. Keeps the buyer's window open while the fault
+ * is ours; a healthy retry a few seconds later settles normally.
+ */
+const UNAVAILABLE_EXPIRY_GRACE_MS = 60_000;
+
+/**
+ * Turn a failed verify into a REJECTED outcome. When the failure is a
+ * gateway-side fault, also stop the challenge's expiry clock burning down
+ * during our own outage — otherwise a validated, memo-bound payment can become
+ * permanently unredeemable through no fault of the payer.
+ */
+async function rejectVerifyFailure(
+  deps: SettleDeps,
+  challenge: ChallengeRow,
+  failure: { reason: string; unavailable?: boolean },
+): Promise<SettleOutcome> {
+  if (failure.unavailable) {
+    await extendChallengeExpiry(
+      deps.pool,
+      challenge.id,
+      new Date(Date.now() + UNAVAILABLE_EXPIRY_GRACE_MS),
+    );
+  }
+  return { result: SettleResult.REJECTED, reason: failure.reason, unavailable: failure.unavailable };
+}
 
 /** Postgres unique-violation SQLSTATE — a concurrent settle already recorded this row. */
 const PG_UNIQUE_VIOLATION = '23505';
@@ -200,7 +231,7 @@ export async function verify(
   }
 
   const result = await verifyPayPerCall(loaded.xrpl, payment.payload, loaded.ctx);
-  if (!result.ok) return reject(result.reason);
+  if (!result.ok) return rejectVerifyFailure(deps, loaded.challenge, result);
 
   return {
     result: SettleResult.VERIFIED,
@@ -237,7 +268,7 @@ export async function settle(
   }
 
   const result = await verifyPayPerCall(loaded.xrpl, payment.payload, loaded.ctx);
-  if (!result.ok) return reject(result.reason);
+  if (!result.ok) return rejectVerifyFailure(deps, challenge, result);
 
   const client = await deps.pool.connect();
   let usageEvent: UsageEventRow;

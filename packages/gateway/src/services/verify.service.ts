@@ -9,7 +9,7 @@ import type { ExactSchemePayload, PaychanSchemePayload } from '@app/shared';
 import { dropsToXrp, verifyPaymentChannelClaim, xrpToDrops } from 'xrpl';
 import { decimalGte, isDecimalString } from '../util/decimal.js';
 import type { ChannelRow } from '../db/types.js';
-import { XrplService } from './xrpl.service.js';
+import { XrplService, rippledErrorCode } from './xrpl.service.js';
 
 /** Everything the verifier needs to check a payment against a challenge. */
 export interface VerifyContext {
@@ -37,6 +37,12 @@ export interface VerifyOk {
 export interface VerifyErr {
   ok: false;
   reason: string;
+  /**
+   * The failure is a gateway-side fault (ledger connection down), not a
+   * problem with the payment. Routes map this to a 503 so the payer knows to
+   * retry the same X-PAYMENT rather than treat the payment as rejected.
+   */
+  unavailable?: boolean;
 }
 
 export type VerifyResult = VerifyOk | VerifyErr;
@@ -127,9 +133,12 @@ const TX_VISIBILITY_RETRY_DELAYS_MS = [1500, 2000, 2500];
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Fetch a transaction, tolerating propagation lag: `txnNotFound` and
- * not-yet-validated responses are retried briefly before giving up. Only
- * visibility is retried — any other failure surfaces immediately.
+ * Fetch a transaction, tolerating propagation lag: a genuine `txnNotFound`
+ * answer and not-yet-validated responses are retried briefly before giving
+ * up. A transport failure (the node never answered: dead socket, timeout) is
+ * NOT "not found" — it surfaces as `unavailable` so the payer is told to
+ * retry rather than being handed a payment rejection for our own outage.
+ * `getTransaction` has already attempted one hard reconnect by then.
  */
 async function fetchValidatedTx(xrpl: XrplService, txHash: string): Promise<RawTx | VerifyErr> {
   let seen = false;
@@ -139,8 +148,17 @@ async function fetchValidatedTx(xrpl: XrplService, txHash: string): Promise<RawT
       const tx = unwrapTxResult(response.result);
       seen = true;
       if (tx.validated === true) return tx;
-    } catch {
-      // txnNotFound (or a transient transport error) — retry below.
+    } catch (err) {
+      if (rippledErrorCode(err) !== 'txnNotFound') {
+        return {
+          ok: false,
+          reason:
+            'gateway ledger connection is unavailable; retry the same request ' +
+            'with the same X-PAYMENT shortly, do not pay again',
+          unavailable: true,
+        };
+      }
+      // A responding node said txnNotFound — possibly propagation lag; retry.
     }
     if (attempt >= TX_VISIBILITY_RETRY_DELAYS_MS.length) {
       return fail(

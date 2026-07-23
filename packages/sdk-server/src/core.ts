@@ -105,18 +105,24 @@ async function requestChallenge(
   return challenge;
 }
 
+/** The facilitator is up but its ledger connection is not; the payer must retry. */
+const FACILITATOR_UNAVAILABLE = Symbol('facilitator-unavailable');
+
 /** Hand a payment + its issued requirements to `/settle`; return the verdict. */
 async function settlePayment(
   options: X402MiddlewareOptions,
   paymentPayload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
-): Promise<SettlementResponse> {
+): Promise<SettlementResponse | typeof FACILITATOR_UNAVAILABLE> {
   const response = await resolveFetch(options)(`${base(options)}/settle`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ x402Version: X402_VERSION, paymentPayload, paymentRequirements }),
     signal: AbortSignal.timeout(FACILITATOR_TIMEOUT_MS),
   });
+  // 503 = gateway-side ledger fault, not a verdict on the payment. Surface it
+  // as retryable instead of treating it like a rejection or a middleware bug.
+  if (response.status === 503) return FACILITATOR_UNAVAILABLE;
   if (!response.ok) {
     throw new Error(`facilitator settle failed (${response.status})`);
   }
@@ -174,6 +180,22 @@ export async function decide(
   }
 
   const outcome = await settlePayment(options, payment, requirements);
+  if (outcome === FACILITATOR_UNAVAILABLE) {
+    // Keep the issued challenge alive while the fault is the facilitator's:
+    // evicting it here would force a re-challenge with a fresh nonce, and the
+    // payer's on-chain payment is memo-bound to this one.
+    if (issued) issued.expiresAtMs = Math.max(issued.expiresAtMs, Date.now() + 60_000);
+    return {
+      kind: 'respond',
+      status: 503,
+      body: {
+        x402Version: X402_VERSION,
+        error:
+          'payment facilitator is temporarily unavailable; retry the same ' +
+          'request with the same X-PAYMENT, do not pay again',
+      },
+    };
+  }
   const header = encodeHeaderPayload(outcome);
 
   if (outcome.success) {
