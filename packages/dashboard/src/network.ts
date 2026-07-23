@@ -19,7 +19,7 @@ function load(): XrplNetwork {
   } catch {
     // localStorage unavailable — fall through to the default.
   }
-  return XrplNetwork.TESTNET;
+  return XrplNetwork.MAINNET;
 }
 
 let current: XrplNetwork = load();
