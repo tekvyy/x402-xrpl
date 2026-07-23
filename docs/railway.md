@@ -64,10 +64,12 @@ missing.
 must be set before the build, and changing one requires a redeploy to take
 effect.
 
-| Variable            | Value                      | Notes                     |
-| ------------------- | -------------------------- | ------------------------- |
-| `VITE_GATEWAY_URL`  | `https://<gateway-domain>` | No trailing slash.        |
-| `VITE_XRPL_NETWORK` | `TESTNET` or `MAINNET`     | Should match the gateway. |
+| Variable           | Value                      | Notes              |
+| ------------------ | -------------------------- | ------------------ |
+| `VITE_GATEWAY_URL` | `https://<gateway-domain>` | No trailing slash. |
+
+The XRPL network is chosen in the dashboard UI (a toggle that reads the
+gateway's served networks), so there is no network env var.
 
 Optional: `VITE_XAMAN_API_KEY`, `VITE_WALLETCONNECT_PROJECT_ID`. GemWallet and
 Crossmark need no config.

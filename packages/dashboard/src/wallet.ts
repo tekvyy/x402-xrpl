@@ -15,7 +15,8 @@ import {
   type Transaction,
 } from 'xrpl-connect';
 import { buildAuthChallengeTx } from '@app/shared';
-import { WALLETCONNECT_PROJECT_ID, XAMAN_API_KEY, XRPL_CONNECT_NETWORK } from './config.js';
+import { WALLETCONNECT_PROJECT_ID, XAMAN_API_KEY } from './config.js';
+import { connectNetworkId, getNetwork, subscribeNetwork } from './network.js';
 
 function buildAdapters(): WalletAdapter[] {
   const adapters: WalletAdapter[] = [new GemWalletAdapter(), new CrossmarkAdapter()];
@@ -28,11 +29,31 @@ function buildAdapters(): WalletAdapter[] {
 
 const adapters = buildAdapters();
 
-/** Shared wallet manager for the whole dashboard session. */
-export const walletManager = new WalletManager({
-  adapters,
-  network: XRPL_CONNECT_NETWORK,
-  autoConnect: false,
+// The WalletManager is bound to one network at construction, so switching the
+// UI network rebuilds it. The current instance and the network it was built for
+// are tracked here; `manager()` lazily (re)builds when they diverge.
+let instance: WalletManager | undefined;
+let instanceNetwork: string | undefined;
+
+function manager(): WalletManager {
+  const network = connectNetworkId(getNetwork());
+  if (!instance || instanceNetwork !== network) {
+    instance = new WalletManager({ adapters, network, autoConnect: false });
+    instanceNetwork = network;
+  }
+  return instance;
+}
+
+// When the user toggles network, drop any wallet connected on the old network
+// so the next connect happens on the newly selected one.
+subscribeNetwork(() => {
+  const previous = instance;
+  if (previous && instanceNetwork !== connectNetworkId(getNetwork())) {
+    void previous.disconnect().catch(() => {
+      // best-effort; the manager is being discarded anyway
+    });
+    instance = undefined;
+  }
 });
 
 /** Selectable wallets, for rendering connect buttons. */
@@ -46,9 +67,9 @@ export const WALLET_OPTIONS: WalletOption[] = adapters.map((adapter) => ({
   name: adapter.name,
 }));
 
-/** Connect the chosen wallet and return its XRPL classic address. */
+/** Connect the chosen wallet on the selected network and return its address. */
 export async function connectWallet(walletId: string): Promise<string> {
-  const account = await walletManager.connect(walletId);
+  const account = await manager().connect(walletId);
   return account.address;
 }
 
@@ -59,7 +80,7 @@ export async function connectWallet(walletId: string): Promise<string> {
  */
 export async function signChallenge(address: string, nonce: string): Promise<string> {
   const tx = buildAuthChallengeTx(address, nonce) as unknown as Transaction;
-  const signed: SignedTransaction = await walletManager.sign(tx);
+  const signed: SignedTransaction = await manager().sign(tx);
   if (!signed.tx_blob) {
     throw new Error('wallet did not return a signed transaction blob');
   }
@@ -69,7 +90,7 @@ export async function signChallenge(address: string, nonce: string): Promise<str
 /** Disconnect the active wallet, ignoring errors. */
 export async function disconnectWallet(): Promise<void> {
   try {
-    await walletManager.disconnect();
+    await manager().disconnect();
   } catch {
     // best-effort
   }

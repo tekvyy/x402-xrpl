@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { requestAuthChallenge, verifyAuthTx } from '../api.js';
 import { sessionFromToken, type Session } from '../auth.js';
 import { WALLET_OPTIONS, connectWallet, disconnectWallet, signChallenge } from '../wallet.js';
+import { NetworkToggle } from './NetworkToggle.js';
 import { Spinner } from './States.js';
 
 interface LoginProps {
@@ -63,6 +64,11 @@ export function Login({ onAuthenticated, onBack }: LoginProps): JSX.Element {
             </div>
           </div>
         )}
+
+        <label className="login-network">
+          <span>Network</span>
+          <NetworkToggle />
+        </label>
 
         <div className="wallet-list">
           {WALLET_OPTIONS.map((wallet) => (

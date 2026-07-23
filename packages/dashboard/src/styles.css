@@ -445,13 +445,78 @@ button.brand:focus-visible {
 
 /* Network chips: mainnet reads as "real money", testnet as neutral/free. */
 .chip-net-mainnet {
-  background: rgba(233, 179, 74, 0.12);
-  color: var(--gold, #e9b34a);
+  background: rgba(255, 147, 46, 0.14);
+  color: var(--amber);
 }
 
 .chip-net-testnet {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: rgba(111, 220, 140, 0.1);
+  color: var(--green);
+}
+
+/* ---- Network toggle ---- */
+.net-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-dim);
+}
+
+.net-toggle-btn {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 12px;
+  background: transparent;
+  color: var(--text-dim);
+  border: 0;
+  cursor: pointer;
+}
+
+.net-toggle-btn + .net-toggle-btn {
+  border-left: 1px solid var(--border-dim);
+}
+
+.net-toggle-btn:hover {
+  color: var(--text);
+}
+
+.net-toggle-active.net-toggle-testnet {
+  background: rgba(111, 220, 140, 0.12);
+  color: var(--green);
+}
+
+.net-toggle-active.net-toggle-mainnet {
+  background: rgba(255, 147, 46, 0.16);
+  color: var(--amber);
+}
+
+/* Single-network badge (no toggle when only one network is served). */
+.net-badge {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border: 1px solid currentColor;
+}
+
+.net-badge-mainnet {
+  color: var(--amber);
+}
+
+.net-badge-testnet {
+  color: var(--green);
+}
+
+.login-network {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* ---- Feed status ---- */

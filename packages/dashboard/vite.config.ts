@@ -13,8 +13,8 @@ const previewAllowedHosts = [
   .map((host) => host?.trim())
   .filter((host): host is string => Boolean(host));
 
-// The dashboard is a static SPA; `VITE_GATEWAY_URL` / `VITE_XRPL_NETWORK` are
-// read at runtime from import.meta.env (see src/config.ts).
+// The dashboard is a static SPA; `VITE_GATEWAY_URL` is read at runtime from
+// import.meta.env (see src/config.ts). The XRPL network is a UI toggle, not env.
 // `xrpl` / `xrpl-connect` expect Node globals (Buffer/global/process) in the
 // browser bundle — the polyfill plugin provides them.
 export default defineConfig({

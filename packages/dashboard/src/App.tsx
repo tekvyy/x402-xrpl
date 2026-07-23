@@ -10,6 +10,7 @@ import { Landing } from './components/Landing.js';
 import { Login } from './components/Login.js';
 import { SellerTab } from './components/SellerTab.js';
 import { BotTab } from './components/BotTab.js';
+import { NetworkToggle } from './components/NetworkToggle.js';
 
 enum Tab {
   APIS = 'APIS',
@@ -59,6 +60,7 @@ export function App(): JSX.Element {
           </div>
         </button>
         <div className="session">
+          <NetworkToggle />
           <span className="session-addr" title={session.address}>
             <span className="dot" /> {shortenAddress(session.address)}
           </span>
