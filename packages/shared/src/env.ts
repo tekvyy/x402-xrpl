@@ -3,20 +3,15 @@
  * error listing every missing/invalid key so misconfiguration fails fast at
  * boot rather than deep inside a request handler.
  *
- * The gateway serves one or more XRPL networks at once. `ENABLED_NETWORKS`
- * selects them and each one carries its own wallet, endpoint, and RLUSD issuer
- * — a network is only configurable if it is enabled, so a testnet-only
- * deployment never needs mainnet keys or funds.
+ * The gateway always serves every XRPL network (testnet and mainnet); users
+ * pick which one to work on from the dashboard. Each network carries its own
+ * wallet, endpoint, and RLUSD issuer.
  */
 import { z } from 'zod';
 import { XrplNetwork } from './enums.js';
 import { isClassicAddress, RLUSD_ISSUERS, XRPL_ENDPOINTS } from './constants.js';
 
 const EnvSchema = z.object({
-  // Comma-separated networks this deployment serves, e.g. "TESTNET" or
-  // "TESTNET,MAINNET". Each entry needs a gateway seed: the shared
-  // GATEWAY_XRPL_SEED, or a per-network GATEWAY_XRPL_SEED_<NETWORK> override.
-  ENABLED_NETWORKS: z.string().optional(),
   // Secret used to sign stateless dashboard session (JWT-style HMAC) tokens.
   // Require at least 256 bits when generated as hexadecimal (64 chars) and a
   // meaningful floor for other encodings; operators should use a CSPRNG.
@@ -73,11 +68,17 @@ export interface NetworkConfig {
   rlusdIssuer: string;
 }
 
+/**
+ * Every network the gateway serves. All deployments serve all networks; users
+ * choose between them per bot / per seller rather than per deployment.
+ */
+export const ALL_NETWORKS: readonly XrplNetwork[] = [XrplNetwork.TESTNET, XrplNetwork.MAINNET];
+
 /** Fully resolved config. */
 export interface AppEnv {
-  /** Networks this deployment serves, in `ENABLED_NETWORKS` order. Never empty. */
+  /** Networks this deployment serves. Always {@link ALL_NETWORKS}. */
   enabledNetworks: XrplNetwork[];
-  /** Per-network XRPL config. Only enabled networks are present. */
+  /** Per-network XRPL config, one entry per network in {@link ALL_NETWORKS}. */
   networks: Partial<Readonly<Record<XrplNetwork, NetworkConfig>>>;
   /** Secret for signing dashboard session tokens. */
   authSecret: string;
@@ -112,41 +113,10 @@ export function networkConfig(env: AppEnv, network: XrplNetwork): NetworkConfig 
   if (!config) {
     throw new Error(
       `network ${network} is not enabled on this gateway ` +
-        `(ENABLED_NETWORKS=${env.enabledNetworks.join(',')})`,
+        `(enabled: ${env.enabledNetworks.join(',')})`,
     );
   }
   return config;
-}
-
-/** Parse `ENABLED_NETWORKS`, collecting errors rather than throwing on the first. */
-function parseEnabledNetworks(raw: string | undefined, errors: string[]): XrplNetwork[] {
-  const names = (raw ?? XrplNetwork.TESTNET)
-    .split(',')
-    .map((name) => name.trim().toUpperCase())
-    .filter((name) => name.length > 0);
-
-  if (names.length === 0) {
-    errors.push('  - ENABLED_NETWORKS: must name at least one network');
-    return [];
-  }
-
-  const valid = Object.values(XrplNetwork) as string[];
-  const networks: XrplNetwork[] = [];
-  for (const name of names) {
-    if (!valid.includes(name)) {
-      errors.push(
-        `  - ENABLED_NETWORKS: unknown network "${name}" (expected ${valid.join(' or ')})`,
-      );
-      continue;
-    }
-    const network = name as XrplNetwork;
-    if (networks.includes(network)) {
-      errors.push(`  - ENABLED_NETWORKS: ${network} listed more than once`);
-      continue;
-    }
-    networks.push(network);
-  }
-  return networks;
 }
 
 /**
@@ -154,27 +124,22 @@ function parseEnabledNetworks(raw: string | undefined, errors: string[]): XrplNe
  *
  * The gateway seed for a network is `GATEWAY_XRPL_SEED_<NETWORK>` if set, else
  * the shared `GATEWAY_XRPL_SEED`. A seed derives the same address on every
- * network, so one shared seed is enough for a single-network deployment (or for
- * running several networks off the same wallet, funded on each). The per-network
- * override only exists for the case where you want a *different* wallet per
- * network. The endpoint and RLUSD issuer fall back to the network's well-known
- * defaults.
+ * network, so one shared seed serves both networks off the same wallet (funded
+ * on each). The per-network override only exists for the case where you want a
+ * *different* wallet per network. The endpoint and RLUSD issuer fall back to
+ * the network's well-known defaults.
  */
 function resolveNetworks(
   source: NodeJS.ProcessEnv,
-  enabled: XrplNetwork[],
   errors: string[],
 ): Partial<Record<XrplNetwork, NetworkConfig>> {
   const networks: Partial<Record<XrplNetwork, NetworkConfig>> = {};
   const sharedSeed = source.GATEWAY_XRPL_SEED;
 
-  for (const network of enabled) {
+  for (const network of ALL_NETWORKS) {
     const seed = source[`GATEWAY_XRPL_SEED_${network}`] || sharedSeed;
     if (seed === undefined || seed.length === 0) {
-      errors.push(
-        `  - GATEWAY_XRPL_SEED (or GATEWAY_XRPL_SEED_${network}): ` +
-          `required because ${network} is in ENABLED_NETWORKS`,
-      );
+      errors.push(`  - GATEWAY_XRPL_SEED (or GATEWAY_XRPL_SEED_${network}): required`);
       continue;
     }
 
@@ -207,8 +172,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
         (issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`,
       );
 
-  const enabledNetworks = parseEnabledNetworks(source.ENABLED_NETWORKS, errors);
-  const networks = resolveNetworks(source, enabledNetworks, errors);
+  const networks = resolveNetworks(source, errors);
 
   if (errors.length > 0 || !parsed.success) {
     throw new Error(`Invalid environment configuration:\n${errors.join('\n')}`);
@@ -216,7 +180,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
 
   const data = parsed.data;
   return {
-    enabledNetworks,
+    enabledNetworks: [...ALL_NETWORKS],
     networks,
     authSecret: data.AUTH_SECRET,
     sourceTag: data.SOURCE_TAG,

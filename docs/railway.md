@@ -48,8 +48,7 @@ variables, typed literally into the UI.
 | `GATEWAY_PUBLIC_URL`        | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | Used to build absolute URLs.                                                    |
 | `TRUST_PROXY`               | `true`                               | Railway fronts the app; without this every per-IP rate limit keys on the proxy. |
 | `AUTH_SECRET`               | (32+ random chars)                   | Session signing secret.                                                         |
-| `ENABLED_NETWORKS`          | `TESTNET` or `TESTNET,MAINNET`       | Networks served at once.                                                        |
-| `GATEWAY_XRPL_SEED`         | (family seed)                        | Covers every enabled network (same address on each). Treat as a secret.         |
+| `GATEWAY_XRPL_SEED`         | (family seed)                        | Covers both networks (same address on each). Treat as a secret.                 |
 | `GATEWAY_XRPL_SEED_MAINNET` | (family seed)                        | Optional: only to use a _different_ wallet on mainnet. Real funds.              |
 | `SOURCE_TAG`                | `2606150004`                         | Shared across networks.                                                         |
 

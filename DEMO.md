@@ -55,9 +55,9 @@ Once in, two tabs:
 ## Mainnet vs testnet
 
 The demo runs testnet-only so wallets can be faucet-funded. The gateway itself
-serves whatever `ENABLED_NETWORKS` lists, so **mainnet is additive, not a
-switch**: set `ENABLED_NETWORKS=TESTNET,MAINNET` plus a funded
-`GATEWAY_XRPL_SEED_MAINNET`, and sellers choose which networks to advertise on.
+always serves both networks, so **mainnet is additive, not a switch**: fund the
+gateway wallet on mainnet (or set a dedicated `GATEWAY_XRPL_SEED_MAINNET`), and
+sellers choose which networks to advertise on.
 Every gateway-submitted transaction carries the configured `SOURCE_TAG` on
 every network. See `MAINNET.md`.
 

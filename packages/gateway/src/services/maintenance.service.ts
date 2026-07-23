@@ -52,9 +52,9 @@ export type MaintenanceDeps = Pick<GatewayDeps, 'pool' | 'xrplRegistry' | 'env'>
  * Scope `deps` to the network a row belongs to, or `null` when that network is
  * no longer enabled.
  *
- * Returning null rather than throwing matters: an operator who drops a network
- * from `ENABLED_NETWORKS` while channels on it still hold unredeemed value must
- * not have the whole sweep die (which would strand every *other* network's
+ * Returning null rather than throwing matters: if a row references a network
+ * this build no longer serves while channels on it still hold unredeemed value,
+ * the whole sweep must not die (which would strand every *other* network's
  * payouts too). Callers log loudly instead — this is real money owed.
  */
 function scopeTo(deps: MaintenanceDeps, network: XrplNetwork): RedeemDeps | null {

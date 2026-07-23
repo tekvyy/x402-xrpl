@@ -8,10 +8,9 @@
  *   pnpm demo
  *
  * Prerequisites: Postgres + Redis reachable via DATABASE_URL / REDIS_URL (from
- * .env). The network is forced to TESTNET here so wallets can be faucet-funded;
- * add mainnet by running the gateway with ENABLED_NETWORKS=TESTNET,MAINNET and a
- * real funded GATEWAY_XRPL_SEED_MAINNET; sellers then choose which networks to
- * advertise on.
+ * .env). The demo itself transacts on TESTNET so wallets can be faucet-funded;
+ * the gateway serves mainnet too, but its faucet wallet is unfunded there, so
+ * nothing can settle on mainnet. Sellers choose which networks to advertise on.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -117,10 +116,9 @@ async function main() {
     process.env.XRPL_ENDPOINT_TESTNET ?? fileEnv.XRPL_ENDPOINT_TESTNET ?? TESTNET_ENDPOINT;
   const authSecret = process.env.AUTH_SECRET ?? fileEnv.AUTH_SECRET ?? 'demo-auth-secret-change-me';
 
-  // The demo is testnet-only so wallets can be faucet-funded; the gateway
-  // itself serves whatever ENABLED_NETWORKS lists in a real deployment.
+  // The demo transacts on testnet only so wallets can be faucet-funded; the
+  // gateway still serves both networks (mainnet stays idle, wallet unfunded).
   const baseEnv = {
-    ENABLED_NETWORKS: 'TESTNET',
     XRPL_ENDPOINT_TESTNET: xrplEndpoint,
     SOURCE_TAG: sourceTag,
     AUTH_SECRET: authSecret,

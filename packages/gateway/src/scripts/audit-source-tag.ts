@@ -5,7 +5,7 @@
  * can gate a release.
  *
  * Run: `pnpm --filter @app/gateway audit:source-tag` (needs a funded gateway
- * wallet with settlement history on each network in `ENABLED_NETWORKS`).
+ * wallet with settlement history on each served network).
  */
 import { loadEnv, networkConfig } from '@app/shared';
 import { XrplService } from '../services/xrpl.service.js';

@@ -1,19 +1,19 @@
-# Enabling mainnet
+# Mainnet
 
-The gateway serves **several XRPL networks at once**. Testnet and mainnet run
-side by side in one deployment, sharing one database, and a seller chooses which
-networks its API is payable on. Enabling mainnet is therefore additive: nothing
-is switched over, and the free testnet path keeps working exactly as before.
+The gateway serves **testnet and mainnet at once, always**. They run side by
+side in one deployment, sharing one database, users toggle between them in the
+dashboard, and a seller chooses which networks its API is payable on. The free
+testnet path keeps working exactly as before regardless of mainnet activity.
 
 Deployment lives at `xrplfi.com` (dashboard) and `api.xrplfi.com` (gateway).
 
 ## How multi-network works
 
-- **`ENABLED_NETWORKS`** lists what the gateway serves (`TESTNET`,
-  `TESTNET,MAINNET`, …). Every enabled network uses `GATEWAY_XRPL_SEED` (one seed
-  derives the same address on each ledger); set a per-network
-  `GATEWAY_XRPL_SEED_<NETWORK>` only to use a _different_ wallet on that network.
-  A testnet-only deployment never needs mainnet keys or real funds.
+- **Both networks use `GATEWAY_XRPL_SEED`** (one seed derives the same address
+  on each ledger); set a per-network `GATEWAY_XRPL_SEED_<NETWORK>` only to use
+  a _different_ wallet on that network. The mainnet wallet must be funded on
+  mainnet before mainnet settlements can happen; until then mainnet requests
+  fail at settlement, not at boot.
 - **A seller picks its networks** at registration (`networks: ["TESTNET"]`,
   `["TESTNET","MAINNET"]`, …). The 402 `accepts[]` carries one group of entries
   per network, so a caller chooses where to pay.
@@ -32,20 +32,18 @@ Deployment lives at `xrplfi.com` (dashboard) and `api.xrplfi.com` (gateway).
 
 | Service             | Variable            | Value                 |
 | ------------------- | ------------------- | --------------------- |
-| `x402-xrpl-backend` | `ENABLED_NETWORKS`  | `TESTNET`             |
-| `x402-xrpl-backend` | `GATEWAY_XRPL_SEED` | (testnet wallet seed) |
+| `x402-xrpl-backend` | `GATEWAY_XRPL_SEED` | (gateway wallet seed) |
 | `x402-xrpl-backend` | `SOURCE_TAG`        | `2606150004`          |
 
-`XRPL_NETWORK` and `RLUSD_ISSUER` are left over from the single-network config
-and are now ignored (unknown keys are stripped); delete them. On
-`admin-dashboard`, `VITE_XRPL_NETWORK` is also dead — the network is a UI toggle
-now. RLUSD issuers are built into `packages/shared/src/constants.ts` per network,
-so `RLUSD_ISSUER_<NETWORK>` only exists as an override.
+`ENABLED_NETWORKS` is gone: both networks are always served, so delete the
+variable if it is still set (unknown keys are stripped, but keeping it around
+misleads). `XRPL_NETWORK` and `RLUSD_ISSUER` are likewise leftovers from the
+single-network config; delete them too. On `admin-dashboard`,
+`VITE_XRPL_NETWORK` is also dead — the network is a UI toggle now. RLUSD
+issuers are built into `packages/shared/src/constants.ts` per network, so
+`RLUSD_ISSUER_<NETWORK>` only exists as an override.
 
-Nothing needs renaming: the existing `GATEWAY_XRPL_SEED` already boots the
-testnet-only deployment.
-
-## Add mainnet (optional, costs real XRP)
+## Fund the mainnet wallet (costs real XRP)
 
 ### Generate and fund wallets
 
@@ -67,17 +65,16 @@ node scripts/check-mainnet-wallets.mjs
 
 Only public addresses are queried; seeds never leave the machine.
 
-### Turn mainnet on
+### Point the gateway at the funded wallet
 
 ```bash
 grep '^GATEWAY_XRPL_SEED_MAINNET=' .env.mainnet | cut -d= -f2- \
-  | railway variables --service x402-xrpl-backend --skip-deploys \
+  | railway variables --service x402-xrpl-backend \
       --set-from-stdin GATEWAY_XRPL_SEED_MAINNET
-
-railway variables --service x402-xrpl-backend --set "ENABLED_NETWORKS=TESTNET,MAINNET"
 ```
 
-The second command has no `--skip-deploys`, so it triggers the deploy.
+This triggers a deploy. Alternatively, fund the shared `GATEWAY_XRPL_SEED`
+wallet's address on mainnet and set nothing at all.
 
 ### Verify
 
@@ -121,7 +118,7 @@ RESOURCE=data CHANNEL_DEPOSIT_XRP=1 METERED_CALLS=20 \
 ```
 
 `XRPL_NETWORK` here is the **agent's** own setting — a client pays on one
-network per run. It is unrelated to the gateway's `ENABLED_NETWORKS`.
+network per run. It says nothing about what the gateway serves (always both).
 
 This puts three real transactions on mainnet, each carrying source tag
 2606150004:
@@ -140,11 +137,11 @@ unrelated required keys, then `.env.mainnet` for the real seed:
 
 ```bash
 set -a && . ./.env && . ./.env.mainnet && set +a
-ENABLED_NETWORKS=TESTNET,MAINNET SOURCE_TAG=2606150004 \
+SOURCE_TAG=2606150004 \
   pnpm --filter @app/gateway audit:source-tag
 ```
 
-The audit walks **every enabled network** and exits non-zero if any transaction
+The audit walks **both networks** and exits non-zero if any transaction
 is missing the tag:
 
 ```
@@ -156,17 +153,6 @@ PASS: audited N transaction(s) across TESTNET, MAINNET.
 
 This is the artifact to show during validation — read from the ledger, not from
 application logs.
-
-## Turning mainnet back off
-
-```bash
-railway variables --service x402-xrpl-backend --set "ENABLED_NETWORKS=TESTNET"
-```
-
-Sellers advertising mainnet stop being payable on it (`payableNetworks` drops
-it) and testnet is unaffected. If any mainnet channel still holds unredeemed
-value, the maintenance sweep logs it loudly per row rather than silently
-stranding it — redeem before disabling.
 
 ## Cost
 

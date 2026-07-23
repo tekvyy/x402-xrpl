@@ -186,8 +186,7 @@ Copy `.env.example` to `.env`. Key vars:
 
 | Var                       | Purpose                                                                                                                                                                                   |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ENABLED_NETWORKS`        | Networks served, comma-separated: `TESTNET`, `MAINNET`, or both                                                                                                                           |
-| `GATEWAY_XRPL_SEED`       | Gateway wallet seed; covers every enabled network (same address on each). Per-network `GATEWAY_XRPL_SEED_<NETWORK>` overrides only for a different wallet per network                     |
+| `GATEWAY_XRPL_SEED`       | Gateway wallet seed; covers both networks (same address on each). Per-network `GATEWAY_XRPL_SEED_<NETWORK>` overrides only for a different wallet per network                             |
 | `XRPL_ENDPOINT_<NETWORK>` | Override that network's WebSocket endpoint (optional)                                                                                                                                     |
 | `RLUSD_ISSUER_<NETWORK>`  | Override that network's RLUSD issuer (optional; Ripple's are built in)                                                                                                                    |
 | `AUTH_SECRET`             | Signs dashboard session tokens (≥ 16 chars)                                                                                                                                               |
@@ -201,11 +200,12 @@ Copy `.env.example` to `.env`. Key vars:
 
 ### Mainnet and testnet together
 
-One deployment serves both. `ENABLED_NETWORKS` picks which, each needs its own
-a gateway seed (`GATEWAY_XRPL_SEED`, or per-network overrides), and a **seller
+Every deployment serves both. Each network needs a gateway seed
+(`GATEWAY_XRPL_SEED` covers both, or use per-network overrides), and a **seller
 chooses its own networks** at
 registration — so the 402 `accepts[]` offers a caller one group of entries per
-network. A testnet-only deployment never needs mainnet keys or funds.
+network. Users toggle between networks in the dashboard to see each network's
+own registry and work with the app on either ledger.
 
 Network is bound to the challenge nonce (one challenge row per network), so
 settle resolves the ledger from persisted state rather than config, and a free
