@@ -87,8 +87,11 @@ export function BotCard({ token, bot, onDeleted, onUnauthorized }: BotCardProps)
     <div className="card bot-card">
       <div className="bot-card-head">
         <h3>{bot.label}</h3>
-        <span className={`chip chip-${bot.paymentMode.toLowerCase()}`}>
-          {paymentModeLabel(bot.paymentMode)}
+        <span className="chip-row">
+          <span className={`chip chip-net-${bot.network.toLowerCase()}`}>{bot.network}</span>
+          <span className={`chip chip-${bot.paymentMode.toLowerCase()}`}>
+            {paymentModeLabel(bot.paymentMode)}
+          </span>
         </span>
       </div>
 

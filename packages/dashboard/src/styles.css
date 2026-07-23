@@ -438,6 +438,22 @@ button.brand:focus-visible {
   color: var(--green);
 }
 
+.chip-row {
+  display: inline-flex;
+  gap: 6px;
+}
+
+/* Network chips: mainnet reads as "real money", testnet as neutral/free. */
+.chip-net-mainnet {
+  background: rgba(233, 179, 74, 0.12);
+  color: var(--gold, #e9b34a);
+}
+
+.chip-net-testnet {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* ---- Feed status ---- */
 .feed-status {
   display: inline-flex;

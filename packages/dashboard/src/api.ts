@@ -297,6 +297,8 @@ export interface CreateBotInput {
   label: string;
   sellerId: string;
   walletAddress: string;
+  /** Which network the bot pays on; must be one the seller is payable on. */
+  network: XrplNetwork;
   asset: Asset;
   paymentMode: PaymentMode;
   resource: string;
