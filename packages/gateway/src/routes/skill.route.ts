@@ -69,8 +69,8 @@ section.
 Apply this to every transaction in this document (Payment,
 PaymentChannelCreate, TrustSet):
 
-1. Set \`SourceTag: 20260530\` (the XRPL AI agent tag) unless your developer
-   assigned a different one. It makes agent traffic attributable on-chain.
+1. Always set \`SourceTag: 2606150004\` on every transaction you submit
+   through this gateway. It makes agent traffic attributable on-chain.
 2. Autofill before signing: \`const prepared = await client.autofill(tx)\`
    fills \`Fee\`, \`Sequence\`, and \`LastLedgerSequence\` from the live node.
    Never hand-fill these.
