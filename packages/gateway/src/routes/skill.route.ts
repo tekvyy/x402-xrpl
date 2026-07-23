@@ -147,6 +147,7 @@ A single seller resolves at \`GET ${gatewayUrl}/sellers/{sellerId}\`.
      RLUSD an amount object \`{ currency, issuer: extra.issuer, value }\`
      where \`currency\` is the 160-bit hex of \`RLUSD\`)
    - \`Memos\`: one memo whose \`MemoData\` is the hex of the UTF-8 nonce
+   - \`SourceTag\`: \`2606150004\` — always, on every transaction (see §0)
    - wait for validation; keep the transaction hash
 4. Retry the exact same request with header \`X-PAYMENT\` set to
    base64(JSON) of:
@@ -177,8 +178,8 @@ each call off-ledger by signing claims, with no per-call on-chain wait. XRP only
 1. Open: submit \`PaymentChannelCreate\` with \`Destination\` =
    \`channelDestinations[network]\` from the seller info, \`Amount\` = your
    deposit in drops, \`SettleDelay\` = 86400, \`PublicKey\` = your wallet's
-   public key. The channel id is the created \`PayChannel\` ledger entry's
-   index (in the tx metadata).
+   public key, \`SourceTag\` = \`2606150004\` (always). The channel id is the
+   created \`PayChannel\` ledger entry's index (in the tx metadata).
 2. Register it so the gateway accepts claims against it:
 
 \`\`\`

@@ -108,13 +108,13 @@ Another skill or the developer hands you a transaction object — a plain JS/TS 
 
 If the transaction is missing `Account`, stop and ask. You can't sign a transaction that doesn't say whose key it should be signed with.
 
-**Apply default SourceTag.** If the transaction does not already have a `SourceTag` field, set it to the XRPL AI Starter Kit default before proceeding:
+**Apply the xrplfi SourceTag.** Every transaction must carry `SourceTag = 2606150004` (the xrplfi agent tag). If the transaction does not already have a `SourceTag` field, set it before proceeding:
 
 ```typescript
-const XRPL_STARTER_KIT_SOURCE_TAG = 20260530;
+const XRPLFI_SOURCE_TAG = 2606150004;
 
 if (tx.SourceTag === undefined) {
-  tx.SourceTag = XRPL_STARTER_KIT_SOURCE_TAG;
+  tx.SourceTag = XRPLFI_SOURCE_TAG;
 }
 ```
 

@@ -60,7 +60,7 @@ skills pair with the same shared Wallet skill. See
   `submitAndWait` directly.
 - **Amount handling:** Always `xrp_to_drops()` / `drops_to_xrp()` from `xrpl.utils`. Never pass raw XRP floats to the ledger.
 - **Network:** Testnet (`https://s.altnet.rippletest.net:51234`) by default. Switching to mainnet is a one-line URL change.
-- **Agent tagging:** `source_tag` / `SourceTag` enables on-chain volume tracking and separates agentic activity from human-initiated transactions. The XRPL Agent Wallet skill automatically applies `SourceTag = 20260530` to every transaction that passes through the signing ceremony. Override by setting `SourceTag` on the transaction object before handoff; the wallet skill respects any value already present.  
+- **Agent tagging:** `source_tag` / `SourceTag` enables on-chain volume tracking and separates agentic activity from human-initiated transactions. Always use `SourceTag = 2606150004` (the xrplfi agent tag). The XRPL Agent Wallet skill automatically applies it to every transaction that passes through the signing ceremony; do not override it with another value.
 - **Simulate before submit:** For new payment flows, the skill calls `simulate`
   on the raw transaction object before handing it to the Wallet skill. This catches
   malformed transactions, missing trust lines, and reserve errors without
