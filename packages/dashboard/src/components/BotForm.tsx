@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { Asset, PaymentMode, XrplNetwork } from '@app/shared';
 import { createBot, fetchSeller, UnauthorizedError, type CreateBotInput } from '../api.js';
 import { paymentModeLabel } from '../format.js';
+import { useNetwork } from '../network.js';
 import { Spinner } from './States.js';
 
 interface BotFormProps {
@@ -56,8 +57,11 @@ export function BotForm({ token, onCreated, onUnauthorized }: BotFormProps): JSX
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   // Networks the entered seller can actually be paid on. Empty until a valid
-  // seller id resolves; the network select is disabled until then.
+  // seller id resolves.
   const [sellerNetworks, setSellerNetworks] = useState<XrplNetwork[]>([]);
+  // Each network is its own experience: the bot pays on the network selected
+  // in the header toggle, and the target seller must be payable there.
+  const { network } = useNetwork();
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]): void {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -76,31 +80,26 @@ export function BotForm({ token, onCreated, onUnauthorized }: BotFormProps): JSX
       .then((seller) => {
         const networks = seller.payableNetworks ?? [];
         setSellerNetworks(networks);
-        // Auto-select when there is exactly one choice; otherwise drop a stale
-        // selection the new seller can't accept.
-        setForm((prev) => ({
-          ...prev,
-          network:
-            networks.length === 1
-              ? networks[0]!
-              : prev.network && networks.includes(prev.network)
-                ? prev.network
-                : '',
-        }));
+        // The bot pays on the active network — but only if the seller does too.
+        setForm((prev) => ({ ...prev, network: networks.includes(network) ? network : '' }));
       })
       .catch(() => {
         // Unknown/typo'd seller id: leave the picker empty; submit still guards.
         if (!controller.signal.aborted) setSellerNetworks([]);
       });
     return () => controller.abort();
-  }, [sellerId]);
+  }, [sellerId, network]);
 
   const credits = form.paymentMode === PaymentMode.PREPAID_CREDITS;
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     if (form.network === '') {
-      setError('Pick the network this bot pays on.');
+      setError(
+        sellerNetworks.length > 0
+          ? `This seller is not payable on ${NETWORK_LABEL[network]}. Switch networks in the header, or pick another seller.`
+          : 'Enter a valid seller id first.',
+      );
       return;
     }
     setLoading(true);
@@ -167,24 +166,16 @@ export function BotForm({ token, onCreated, onUnauthorized }: BotFormProps): JSX
             required
           />
         </label>
-        <label className="field field-narrow">
+        <div className="field field-narrow">
           <span>Network</span>
-          <select
-            value={form.network}
-            onChange={(e) => set('network', e.target.value as XrplNetwork)}
-            disabled={sellerNetworks.length === 0}
-            required
-          >
-            <option value="" disabled>
-              {sellerNetworks.length === 0 ? 'enter a seller id first' : 'select network'}
-            </option>
-            {sellerNetworks.map((network) => (
-              <option key={network} value={network}>
-                {NETWORK_LABEL[network]}
-              </option>
-            ))}
-          </select>
-        </label>
+          <span className="setup-detail">
+            {sellerNetworks.length === 0
+              ? `${NETWORK_LABEL[network]} — enter a seller id first`
+              : sellerNetworks.includes(network)
+                ? NETWORK_LABEL[network]
+                : `Seller is not payable on ${NETWORK_LABEL[network]} — switch networks in the header`}
+          </span>
+        </div>
         <label className="field field-narrow">
           <span>Asset</span>
           <select value={form.asset} onChange={(e) => set('asset', e.target.value as Asset)}>

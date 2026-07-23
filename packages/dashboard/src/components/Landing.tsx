@@ -8,6 +8,8 @@ import { XrplNetwork } from '@app/shared';
 import { fetchCatalog, type Catalog, type CatalogService } from '../api.js';
 import { GATEWAY_URL } from '../config.js';
 import { trimDecimal } from '../format.js';
+import { useNetwork } from '../network.js';
+import { NetworkToggle } from './NetworkToggle.js';
 import { CardSkeleton } from './States.js';
 
 interface LandingProps {
@@ -97,6 +99,7 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const registryRef = useRef<HTMLElement | null>(null);
   const typedLines = useTypedTrace(TRACE);
+  const { network } = useNetwork();
 
   useEffect(() => {
     let cancelled = false;
@@ -112,14 +115,12 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
     };
   }, []);
 
-  const services = catalog?.services ?? [];
-  // Reflect the networks the gateway actually serves rather than a hardcoded
-  // "testnet only" — the deployment may serve testnet, mainnet, or both.
-  const networksLabel = catalog
-    ? catalog.networks
-        .map((network) => (network === XrplNetwork.MAINNET ? 'Mainnet' : 'Testnet'))
-        .join(' + ')
-    : '';
+  // The registry is scoped to the network selected in the header toggle: each
+  // network is its own experience, with its own set of advertised services.
+  const services = (catalog?.services ?? []).filter((service) =>
+    service.networks.includes(network),
+  );
+  const networkLabel = network === XrplNetwork.MAINNET ? 'Mainnet' : 'Testnet';
   const agentSnippet = useMemo(
     () =>
       [
@@ -146,15 +147,17 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           <span className="brand-mark">x402</span>
           <div className="brand-text">
             <h1>
-              XRPL x402 Gateway{' '}
-              <span className="beta-badge">Beta{networksLabel ? ` · ${networksLabel}` : ''}</span>
+              XRPL x402 Gateway <span className="beta-badge">Beta</span>
             </h1>
             <p>Monetize APIs · run paying agents</p>
           </div>
         </button>
-        <button className="btn" type="button" onClick={onSignIn}>
-          Sign in with wallet
-        </button>
+        <div className="session">
+          <NetworkToggle />
+          <button className="btn" type="button" onClick={onSignIn}>
+            Sign in with wallet
+          </button>
+        </div>
       </header>
 
       <section className="hero">
@@ -187,7 +190,7 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
         <div className="term" aria-label="An x402 payment exchange">
           <div className="term-bar">
             <span className="term-title">agent@xrpl:~</span>
-            <span className="term-net">{catalog?.networks.join(' + ') ?? 'TESTNET'}</span>
+            <span className="term-net">{network}</span>
           </div>
           <pre className="term-body">
             {TRACE.slice(0, typedLines).map((line, index) => (
@@ -245,7 +248,7 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           <h2 className="panel-title">Service registry</h2>
           <span className="feed-status feed-status-live">
             <span className="dot" />
-            {catalog ? `${services.length} live on ${catalog.networks.join(' + ')}` : 'connecting'}
+            {catalog ? `${services.length} live on ${networkLabel}` : 'connecting'}
           </span>
         </div>
 
@@ -257,8 +260,8 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
         )}
         {catalog && services.length === 0 && (
           <div className="empty-state">
-            No services registered yet. Sign in and register the first one: it appears here the
-            moment it exists.
+            No services registered on {networkLabel} yet. Sign in and register the first one: it
+            appears here the moment it exists.
           </div>
         )}
         {services.length > 0 && (
@@ -284,10 +287,7 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
         <span>
           facilitator <code>{GATEWAY_URL}</code>
         </span>
-        <span>
-          x402 on the XRP Ledger · every settlement source-tagged on chain · Beta
-          {networksLabel ? ` · ${networksLabel}` : ''}
-        </span>
+        <span>x402 on the XRP Ledger · every settlement source-tagged on chain · Beta</span>
       </footer>
     </div>
   );

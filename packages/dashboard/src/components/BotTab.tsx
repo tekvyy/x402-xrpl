@@ -3,7 +3,9 @@
  * (download config, copy run command, monitor spend, delete).
  */
 import { useCallback, useEffect, useState } from 'react';
+import { XrplNetwork } from '@app/shared';
 import { fetchMyBots, UnauthorizedError, type Bot } from '../api.js';
+import { useNetwork } from '../network.js';
 import { BotForm } from './BotForm.js';
 import { BotCard } from './BotCard.js';
 import { CardSkeleton, EmptyState, ErrorBanner } from './States.js';
@@ -16,6 +18,8 @@ interface BotTabProps {
 export function BotTab({ token, onUnauthorized }: BotTabProps): JSX.Element {
   const [bots, setBots] = useState<Bot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Each network is its own experience: only this network's bots are shown.
+  const { network } = useNetwork();
 
   const load = useCallback(() => {
     fetchMyBots(token)
@@ -38,19 +42,23 @@ export function BotTab({ token, onUnauthorized }: BotTabProps): JSX.Element {
         <div className="card panel">
           <CardSkeleton rows={3} />
         </div>
-      ) : bots.length === 0 ? (
-        <EmptyState message="No bots yet. Create one above to generate a runnable agent config." />
+      ) : bots.filter((bot) => bot.network === network).length === 0 ? (
+        <EmptyState
+          message={`No bots on ${network === XrplNetwork.MAINNET ? 'Mainnet' : 'Testnet'} yet. Create one above to generate a runnable agent config.`}
+        />
       ) : (
         <div className="bot-grid">
-          {bots.map((bot) => (
-            <BotCard
-              key={bot.id}
-              token={token}
-              bot={bot}
-              onDeleted={load}
-              onUnauthorized={onUnauthorized}
-            />
-          ))}
+          {bots
+            .filter((bot) => bot.network === network)
+            .map((bot) => (
+              <BotCard
+                key={bot.id}
+                token={token}
+                bot={bot}
+                onDeleted={load}
+                onUnauthorized={onUnauthorized}
+              />
+            ))}
         </div>
       )}
     </div>
