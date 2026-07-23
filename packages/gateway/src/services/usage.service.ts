@@ -6,7 +6,7 @@
  * escrow paths) and the subscriber (the route) stay in lockstep.
  */
 import type { Redis } from 'ioredis';
-import type { Asset, PaymentMode } from '@app/shared';
+import type { Asset, PaymentMode, XrplNetwork } from '@app/shared';
 import type { UsageEventRow } from '../db/types.js';
 
 /** The wire shape a dashboard receives on the live feed. */
@@ -19,6 +19,8 @@ export interface UsageStreamEvent {
   amount: string;
   asset: Asset;
   mode: PaymentMode;
+  /** Network this call was paid on; the feed links to that ledger's explorer. */
+  network: XrplNetwork;
   /** On-chain settlement hash, when one exists (null for off-ledger credits). */
   txHash: string | null;
   /** ISO-8601 settlement timestamp. */
@@ -40,6 +42,7 @@ export function toStreamEvent(row: UsageEventRow): UsageStreamEvent {
     amount: row.amount,
     asset: row.asset,
     mode: row.mode,
+    network: row.network,
     txHash: row.tx_hash,
     timestamp: new Date(row.created_at).toISOString(),
   };

@@ -23,6 +23,17 @@ export const XRPL_ENDPOINTS: Readonly<Record<XrplNetwork, string>> = Object.free
 });
 
 /**
+ * Ripple's official RLUSD issuing accounts per network. These are fixed
+ * properties of the asset rather than deployment config, so they live here and
+ * `RLUSD_ISSUER_<NETWORK>` only exists to override them (e.g. to point a local
+ * fork at a test issuer). Verified on ledger: both carry `Domain: ripple.com`.
+ */
+export const RLUSD_ISSUERS: Readonly<Record<XrplNetwork, string>> = Object.freeze({
+  [XrplNetwork.MAINNET]: 'rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De',
+  [XrplNetwork.TESTNET]: 'rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV',
+});
+
+/**
  * x402 v1 network identifiers for XRPL, following the spec's naming style
  * (`base` / `base-sepolia`). These are the `network` values carried in
  * `accepts[]`, `X-PAYMENT`, and `X-PAYMENT-RESPONSE`.

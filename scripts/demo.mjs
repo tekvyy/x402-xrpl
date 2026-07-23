@@ -9,8 +9,9 @@
  *
  * Prerequisites: Postgres + Redis reachable via DATABASE_URL / REDIS_URL (from
  * .env). The network is forced to TESTNET here so wallets can be faucet-funded;
- * switch to mainnet by running the individual package `start` scripts with
- * XRPL_NETWORK=MAINNET and a real funded GATEWAY_XRPL_SEED.
+ * add mainnet by running the gateway with ENABLED_NETWORKS=TESTNET,MAINNET and a
+ * real funded GATEWAY_XRPL_SEED_MAINNET; sellers then choose which networks to
+ * advertise on.
  */
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -111,16 +112,17 @@ async function main() {
     throw new Error('DATABASE_URL and REDIS_URL must be set (copy .env.example to .env).');
   }
 
-  const sourceTag = process.env.SOURCE_TAG ?? fileEnv.SOURCE_TAG ?? '1080108';
-  const rlusdIssuer = process.env.RLUSD_ISSUER ?? fileEnv.RLUSD_ISSUER ?? '';
-  const xrplEndpoint = process.env.XRPL_ENDPOINT ?? fileEnv.XRPL_ENDPOINT ?? TESTNET_ENDPOINT;
+  const sourceTag = process.env.SOURCE_TAG ?? fileEnv.SOURCE_TAG ?? '2606150004';
+  const xrplEndpoint =
+    process.env.XRPL_ENDPOINT_TESTNET ?? fileEnv.XRPL_ENDPOINT_TESTNET ?? TESTNET_ENDPOINT;
   const authSecret = process.env.AUTH_SECRET ?? fileEnv.AUTH_SECRET ?? 'demo-auth-secret-change-me';
 
+  // The demo is testnet-only so wallets can be faucet-funded; the gateway
+  // itself serves whatever ENABLED_NETWORKS lists in a real deployment.
   const baseEnv = {
-    XRPL_NETWORK: 'TESTNET',
-    XRPL_ENDPOINT: xrplEndpoint,
+    ENABLED_NETWORKS: 'TESTNET',
+    XRPL_ENDPOINT_TESTNET: xrplEndpoint,
     SOURCE_TAG: sourceTag,
-    RLUSD_ISSUER: rlusdIssuer,
     AUTH_SECRET: authSecret,
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
@@ -150,7 +152,7 @@ async function main() {
   console.log('==> Starting gateway and dashboard…');
   start('gateway', 'node', ['packages/gateway/dist/server.js'], {
     ...baseEnv,
-    GATEWAY_XRPL_SEED: gatewayWallet.seed,
+    GATEWAY_XRPL_SEED_TESTNET: gatewayWallet.seed,
     GATEWAY_PORT: String(GATEWAY_PORT),
     GATEWAY_PUBLIC_URL: `http://localhost:${GATEWAY_PORT}`,
   });
@@ -194,6 +196,7 @@ async function main() {
       priceAsset: 'XRP',
       // The demo exercises both paths: 20 metered credit calls + 1 pay-per-call.
       paymentMode: 'BOTH',
+      networks: ['TESTNET'],
     }),
   });
   if (!sellerRes.ok) throw new Error(`seller registration failed (${sellerRes.status})`);

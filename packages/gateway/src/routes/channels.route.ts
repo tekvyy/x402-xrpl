@@ -5,7 +5,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { SettleResult } from '@app/shared';
+import { SettleResult, XrplNetwork } from '@app/shared';
 import { XrplAddressSchema } from '@app/shared';
 import { registerChannel, redeemChannel } from '../services/channel.service.js';
 import { depositEscrow } from '../services/escrow.service.js';
@@ -13,18 +13,26 @@ import { getChannelByChannelId, getSeller } from '../db/repositories.js';
 import { REGISTRATION_RATE_LIMIT } from '../constants.js';
 import { rateLimitByIp } from '../util/rate-limit.js';
 import { requireAuth } from './authenticate.js';
+import { forNetwork } from '../deps.js';
 import type { GatewayDeps } from '../deps.js';
 
+// A PayChan id is only unique within one ledger (it is derived from account,
+// destination, and sequence), so every channel operation names its network
+// explicitly rather than inferring one.
 const RegisterChannelSchema = z.object({
   channelId: z.string().min(1).max(64),
   sellerId: z.string().uuid(),
   walletAddress: XrplAddressSchema,
+  network: z.nativeEnum(XrplNetwork),
 });
+
+const NetworkQuerySchema = z.object({ network: z.nativeEnum(XrplNetwork) });
 
 const EscrowDepositSchema = z.object({
   sellerId: z.string().uuid(),
   walletAddress: XrplAddressSchema,
   txHash: z.string().min(1).max(64),
+  network: z.nativeEnum(XrplNetwork),
 });
 
 export function registerChannelRoutes(app: FastifyInstance, deps: GatewayDeps): void {
@@ -35,7 +43,10 @@ export function registerChannelRoutes(app: FastifyInstance, deps: GatewayDeps): 
     if (!parsed.success) {
       return reply.code(400).send({ error: 'invalid channel', issues: parsed.error.issues });
     }
-    const result = await registerChannel(deps, parsed.data);
+    if (!deps.xrplRegistry.has(parsed.data.network)) {
+      return reply.code(400).send({ error: `network ${parsed.data.network} is not served here` });
+    }
+    const result = await registerChannel(forNetwork(deps, parsed.data.network), parsed.data);
     if (!result.ok) return reply.code(400).send({ error: result.reason });
 
     const { channel } = result;
@@ -50,17 +61,25 @@ export function registerChannelRoutes(app: FastifyInstance, deps: GatewayDeps): 
     });
   });
 
-  app.post<{ Params: { id: string } }>(
+  app.post<{ Params: { id: string }; Querystring: { network?: string } }>(
     '/channels/:id/redeem',
     { preHandler: auth },
     async (request, reply) => {
-      const channel = await getChannelByChannelId(deps.pool, request.params.id);
+      const query = NetworkQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        return reply.code(400).send({ error: 'a ?network= query parameter is required' });
+      }
+      const { network } = query.data;
+      if (!deps.xrplRegistry.has(network)) {
+        return reply.code(400).send({ error: `network ${network} is not served here` });
+      }
+      const channel = await getChannelByChannelId(deps.pool, network, request.params.id);
       if (!channel) return reply.code(404).send({ error: 'unknown channel' });
       const seller = await getSeller(deps.pool, channel.seller_id);
       if (!seller || seller.owner_address !== request.ownerAddress) {
         return reply.code(403).send({ error: 'only the seller owner can redeem this channel' });
       }
-      const outcome = await redeemChannel(deps, request.params.id);
+      const outcome = await redeemChannel(forNetwork(deps, network), request.params.id);
       if (outcome.result !== SettleResult.SETTLED) {
         return reply.code(400).send({ error: outcome.reason ?? 'redeem rejected' });
       }
@@ -80,7 +99,10 @@ export function registerChannelRoutes(app: FastifyInstance, deps: GatewayDeps): 
       if (!parsed.success) {
         return reply.code(400).send({ error: 'invalid deposit', issues: parsed.error.issues });
       }
-      const result = await depositEscrow(deps, parsed.data);
+      if (!deps.xrplRegistry.has(parsed.data.network)) {
+        return reply.code(400).send({ error: `network ${parsed.data.network} is not served here` });
+      }
+      const result = await depositEscrow(forNetwork(deps, parsed.data.network), parsed.data);
       if (!result.ok) return reply.code(400).send({ error: result.reason });
 
       const { credit } = result;

@@ -3,10 +3,10 @@
  * config, opens Postgres/Redis/XRPL connections, builds the app, and wires
  * graceful shutdown.
  */
-import { loadEnv } from '@app/shared';
+import { loadEnv, networkConfig } from '@app/shared';
 import { createPool } from './db/pool.js';
 import { createRedis } from './redis/client.js';
-import { XrplService } from './services/xrpl.service.js';
+import { XrplRegistry } from './services/xrpl-registry.js';
 import { startMaintenance } from './services/maintenance.service.js';
 import { buildApp } from './app.js';
 
@@ -17,24 +17,28 @@ async function main(): Promise<void> {
   const redis = createRedis(env.redisUrl);
   await redis.connect();
 
-  const xrpl = new XrplService(
-    env.xrplEndpoint,
-    env.gatewayXrplSeed,
-    env.sourceTag,
-    env.rlusdIssuer,
-  );
+  const xrplRegistry = new XrplRegistry(env);
+
+  // Log the wallet per network at boot: an operator's fastest check that the
+  // right (and funded) account is configured for each ledger being served.
+  for (const network of env.enabledNetworks) {
+    console.log(
+      `[xrpl] ${network} → ${networkConfig(env, network).endpoint} ` +
+        `as ${xrplRegistry.for(network).address()}`,
+    );
+  }
 
   const publicBaseUrl =
     process.env.GATEWAY_PUBLIC_URL?.replace(/\/+$/, '') ?? `http://localhost:${env.gatewayPort}`;
 
-  const app = await buildApp({ pool, redis, xrpl, env, publicBaseUrl });
+  const app = await buildApp({ pool, redis, xrplRegistry, env, publicBaseUrl });
 
-  const stopMaintenance = startMaintenance({ pool, xrpl, env });
+  const stopMaintenance = startMaintenance({ pool, xrplRegistry, env });
 
   const shutdown = async (): Promise<void> => {
     stopMaintenance();
     await app.close();
-    await xrpl.disconnect();
+    await xrplRegistry.disconnectAll();
     redis.disconnect();
     await pool.end();
     process.exit(0);

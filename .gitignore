@@ -3,4 +3,5 @@ dist
 *.tsbuildinfo
 .env
 .env.local
+.env.mainnet
 .DS_Store

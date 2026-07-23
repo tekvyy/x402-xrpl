@@ -11,6 +11,7 @@
 import { Client, Wallet, dropsToXrp, xrpToDrops } from 'xrpl';
 import { loadWallet, ensureConnected, openChannel } from '@xrpl-x402/client';
 import type { ChannelHandle, X402Config } from '@xrpl-x402/client';
+import type { XrplNetwork } from '@app/shared';
 import { createPaidFetchTool } from './tool.js';
 import { DEMO_ASSET } from './config.js';
 import type { AgentConfig } from './config.js';
@@ -18,8 +19,13 @@ import type { AgentConfig } from './config.js';
 /** Seller fields the agent reads from the gateway to open a channel. */
 interface SellerInfo {
   payToAddress: string;
-  /** Where to open the PayChan channel — always the gateway, which redeems claims. */
-  channelDestination: string;
+  /**
+   * Where to open the PayChan channel, per network — always the gateway, which
+   * redeems claims, and it holds a different wallet on each ledger.
+   */
+  channelDestinations: Partial<Record<XrplNetwork, string>>;
+  /** Networks this seller can actually be paid on right now. */
+  payableNetworks: XrplNetwork[];
   /** The seller's own API base URL (its routes are metered by x402 middleware). */
   originUrl: string;
   priceAsset: string;
@@ -31,6 +37,22 @@ async function fetchSeller(config: AgentConfig): Promise<SellerInfo> {
   if (!response.ok)
     throw new Error(`could not load seller ${config.sellerId} (${response.status})`);
   return (await response.json()) as SellerInfo;
+}
+
+/**
+ * The gateway address to open this agent's channel against, for the network the
+ * agent is configured for. Fails loudly rather than defaulting to another
+ * network's address — paying the wrong destination would be unrecoverable.
+ */
+function channelDestinationFor(seller: SellerInfo, network: XrplNetwork): string {
+  const destination = seller.channelDestinations?.[network];
+  if (!destination) {
+    throw new Error(
+      `seller is not payable on ${network} ` +
+        `(payable: ${seller.payableNetworks?.join(', ') || 'none'})`,
+    );
+  }
+  return destination;
 }
 
 /** Register a freshly opened channel with the gateway as a credits source. */
@@ -46,6 +68,7 @@ async function registerChannel(
       channelId: channel.channelId,
       sellerId: config.sellerId,
       walletAddress,
+      network: config.network,
     }),
   });
   if (!response.ok) {
@@ -77,7 +100,7 @@ export async function runAgentDemo(
   const channel = await openChannel({
     client,
     wallet,
-    destination: seller.channelDestination,
+    destination: channelDestinationFor(seller, config.network),
     deposit: config.depositXrp,
     sourceTag: config.sourceTag,
   });

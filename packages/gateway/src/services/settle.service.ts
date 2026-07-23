@@ -17,11 +17,13 @@ import {
   X402Scheme,
   explorerTxUrl,
   modeForScheme,
+  networkConfig,
   setupAllowsMode,
   x402NetworkId,
 } from '@app/shared';
 import type {
   AppEnv,
+  XrplNetwork,
   PaymentPayload,
   PaymentRequirements,
   PaychanSchemePayload,
@@ -42,11 +44,17 @@ import type { VerifyContext } from './verify.service.js';
 import { autoRedeemIfNeeded } from './channel.service.js';
 import { publishUsageEvent } from './usage.service.js';
 import { XrplService } from './xrpl.service.js';
+import type { XrplRegistry } from './xrpl-registry.js';
 
 export interface SettleDeps {
   pool: Pool;
   redis: Redis;
-  xrpl: XrplService;
+  /**
+   * All enabled networks. Settlement cannot be scoped to one up front — the
+   * network is a property of the challenge being settled, resolved inside
+   * {@link loadChallenge} from the single-use nonce.
+   */
+  xrplRegistry: XrplRegistry;
   env: AppEnv;
 }
 
@@ -80,6 +88,10 @@ interface LoadedChallenge {
   challenge: ChallengeRow;
   seller: SellerRow;
   ctx: VerifyContext;
+  /** The network the challenge is bound to. */
+  network: XrplNetwork;
+  /** XRPL service for {@link network} — the only ledger this settle may touch. */
+  xrpl: XrplService;
 }
 
 /**
@@ -94,10 +106,6 @@ async function loadChallenge(
   payment: PaymentPayload,
   requirements: PaymentRequirements,
 ): Promise<LoadedChallenge | SettleOutcome> {
-  const network = x402NetworkId(deps.env.xrplNetwork);
-  if (payment.network !== network || requirements.network !== network) {
-    return reject(X402ErrorCode.INVALID_NETWORK);
-  }
   if (requirements.scheme !== payment.scheme) {
     return reject(X402ErrorCode.INVALID_PAYMENT_REQUIREMENTS);
   }
@@ -106,6 +114,19 @@ async function loadChallenge(
   if (!challenge) return reject('unknown or unissued nonce');
   if (requirements.extra.nonce !== challenge.nonce) {
     return reject('requirements nonce does not match the payment nonce');
+  }
+
+  // The network comes from the challenge, never from process config: the
+  // gateway issues one challenge per network, so the single-use nonce *is* the
+  // network binding. Without this, a free testnet payment could satisfy a
+  // mainnet challenge. Both the payload and the echoed requirements must agree
+  // with what was issued.
+  const network = x402NetworkId(challenge.network);
+  if (payment.network !== network || requirements.network !== network) {
+    return reject(X402ErrorCode.INVALID_NETWORK);
+  }
+  if (!deps.xrplRegistry.has(challenge.network)) {
+    return reject(`network ${challenge.network} is no longer served by this gateway`);
   }
 
   const seller = await getSeller(deps.pool, challenge.seller_id);
@@ -140,9 +161,15 @@ async function loadChallenge(
     requiredAmount: challenge.amount,
     payTo: seller.pay_to_address,
     nonce: challenge.nonce,
-    rlusdIssuer: deps.env.rlusdIssuer,
+    rlusdIssuer: networkConfig(deps.env, challenge.network).rlusdIssuer,
   };
-  return { challenge, seller, ctx };
+  return {
+    challenge,
+    seller,
+    ctx,
+    network: challenge.network,
+    xrpl: deps.xrplRegistry.for(challenge.network),
+  };
 }
 
 /** Verify a payment against its challenge without consuming it. */
@@ -156,7 +183,7 @@ export async function verify(
 
   if (payment.scheme === X402Scheme.PAYCHAN) {
     const claim = payment.payload;
-    const channel = await getChannelByChannelId(deps.pool, claim.channelId);
+    const channel = await getChannelByChannelId(deps.pool, loaded.network, claim.channelId);
     if (!channel) return reject('unknown channel');
     if (channel.seller_id !== loaded.seller.id) {
       return reject('channel does not belong to this seller');
@@ -172,13 +199,13 @@ export async function verify(
     };
   }
 
-  const result = await verifyPayPerCall(deps.xrpl, payment.payload, loaded.ctx);
+  const result = await verifyPayPerCall(loaded.xrpl, payment.payload, loaded.ctx);
   if (!result.ok) return reject(result.reason);
 
   return {
     result: SettleResult.VERIFIED,
     txHash: result.txHash,
-    explorerUrl: explorerTxUrl(deps.env.xrplNetwork, result.txHash),
+    explorerUrl: explorerTxUrl(loaded.network, result.txHash),
     seller: loaded.seller,
     challenge: loaded.challenge,
     amount: result.deliveredHuman,
@@ -209,7 +236,7 @@ export async function settle(
     return reject('nonce has already been used');
   }
 
-  const result = await verifyPayPerCall(deps.xrpl, payment.payload, loaded.ctx);
+  const result = await verifyPayPerCall(loaded.xrpl, payment.payload, loaded.ctx);
   if (!result.ok) return reject(result.reason);
 
   const client = await deps.pool.connect();
@@ -231,6 +258,7 @@ export async function settle(
     const sourceTag = result.sourceTag ?? deps.env.sourceTag;
     await insertPayment(client, {
       challengeId: challenge.id,
+      network: loaded.network,
       walletAddress: result.payer,
       mode: PaymentMode.PAY_PER_CALL,
       amount: result.deliveredHuman,
@@ -240,6 +268,7 @@ export async function settle(
     });
     usageEvent = await insertUsageEvent(client, {
       sellerId: seller.id,
+      network: loaded.network,
       walletAddress: result.payer,
       endpoint: challenge.resource,
       amount: result.deliveredHuman,
@@ -264,7 +293,7 @@ export async function settle(
   return {
     result: SettleResult.SETTLED,
     txHash: result.txHash,
-    explorerUrl: explorerTxUrl(deps.env.xrplNetwork, result.txHash),
+    explorerUrl: explorerTxUrl(loaded.network, result.txHash),
     seller,
     challenge,
     amount: result.deliveredHuman,
@@ -289,7 +318,7 @@ async function settlePrepaidCredits(
     return reject('nonce has already been used');
   }
 
-  const channel = await getChannelByChannelId(deps.pool, payload.channelId);
+  const channel = await getChannelByChannelId(deps.pool, loaded.network, payload.channelId);
   if (!channel) return reject('unknown channel');
   if (channel.seller_id !== seller.id) return reject('channel does not belong to this seller');
   if (channel.status === ChannelStatus.CLOSED) {
@@ -315,13 +344,13 @@ async function settlePrepaidCredits(
   // source-initiated closure, and balances not accounted for by this gateway.
   let ledgerChannel;
   try {
-    ledgerChannel = await deps.xrpl.getPaymentChannel(payload.channelId);
+    ledgerChannel = await loaded.xrpl.getPaymentChannel(payload.channelId);
   } catch {
     return reject('could not read the channel from the ledger; try again');
   }
   if (
     !ledgerChannel ||
-    ledgerChannel.Destination !== deps.xrpl.address() ||
+    ledgerChannel.Destination !== loaded.xrpl.address() ||
     ledgerChannel.Account !== channel.wallet_address ||
     ledgerChannel.PublicKey !== channel.public_key ||
     // The on-ledger deposit must at least cover the credits we registered. A
@@ -360,6 +389,7 @@ async function settlePrepaidCredits(
 
     const applied = await applyChannelClaim(client, {
       channelId: payload.channelId,
+      network: loaded.network,
       newCumulative: result.newCumulativeHuman,
       minIncrement: result.chargeHuman,
       signature: result.signature,
@@ -372,6 +402,7 @@ async function settlePrepaidCredits(
 
     usageEvent = await insertUsageEvent(client, {
       sellerId: seller.id,
+      network: loaded.network,
       walletAddress: channel.wallet_address,
       endpoint: challenge.resource,
       amount: result.chargeHuman,
@@ -393,7 +424,10 @@ async function settlePrepaidCredits(
   // Best-effort: pull the delivered value on chain once the channel is mostly
   // spent or nearing expiry. Fire-and-forget so it never delays the paid call;
   // the manual /redeem route stays the backstop.
-  void autoRedeemIfNeeded(deps, appliedChannel);
+  void autoRedeemIfNeeded(
+    { pool: deps.pool, env: deps.env, xrpl: loaded.xrpl, network: loaded.network },
+    appliedChannel,
+  );
 
   return {
     result: SettleResult.SETTLED,

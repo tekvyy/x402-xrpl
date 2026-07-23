@@ -2,7 +2,7 @@
  * Typed client for the gateway usage endpoints (US-005). Response shapes mirror
  * the gateway repositories exactly so the dashboard and backend stay in lockstep.
  */
-import type { Asset, PaymentMode, PaymentSetup } from '@app/shared';
+import type { Asset, PaymentMode, PaymentSetup, XrplNetwork } from '@app/shared';
 import { GATEWAY_URL } from './config.js';
 
 /** Revenue rolled up per settlement asset. */
@@ -46,6 +46,10 @@ export interface SellerInfo {
   priceAsset: Asset;
   /** Which payment modes this seller accepts. */
   paymentMode: PaymentSetup;
+  /** Networks this seller is advertised on. */
+  networks: XrplNetwork[];
+  /** Networks the gateway can actually take payment on right now. */
+  payableNetworks: XrplNetwork[];
 }
 
 /** One publicly listed service from `GET /catalog`. */
@@ -57,14 +61,20 @@ export interface CatalogService {
   priceAmount: string;
   priceAsset: Asset;
   paymentMode: PaymentSetup;
-  /** Where a prepaid PayChan channel must be opened. */
-  channelDestination: string;
+  networks: XrplNetwork[];
+  payableNetworks: XrplNetwork[];
+  /**
+   * Where a prepaid PayChan channel must be opened, keyed by network — the
+   * gateway holds a different wallet on each ledger.
+   */
+  channelDestinations: Partial<Record<XrplNetwork, string>>;
   platformFeeBps: number;
 }
 
 /** `GET /catalog` response: the public service registry agents discover from. */
 export interface Catalog {
-  network: string;
+  /** Every network this gateway serves. */
+  networks: XrplNetwork[];
   facilitator: string;
   services: CatalogService[];
 }
@@ -85,6 +95,8 @@ export interface UsageStreamEvent {
   amount: string;
   asset: Asset;
   mode: PaymentMode;
+  /** Network this call was paid on; drives the explorer link. */
+  network: XrplNetwork;
   txHash: string | null;
   timestamp: string;
 }
@@ -242,6 +254,8 @@ export interface CreateSellerInput {
   priceAmount: string;
   priceAsset: Asset;
   paymentMode: PaymentSetup;
+  /** Networks to advertise on; at least one. */
+  networks: XrplNetwork[];
 }
 
 export function createApi(token: string, input: CreateSellerInput): Promise<{ sellerId: string }> {
@@ -259,6 +273,8 @@ export interface Bot {
   label: string;
   sellerId: string;
   walletAddress: string;
+  /** Network this bot pays on. */
+  network: XrplNetwork;
   asset: Asset;
   paymentMode: PaymentMode;
   resource: string;

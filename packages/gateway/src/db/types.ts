@@ -10,6 +10,7 @@ import type {
   PaymentMode,
   PaymentSetup,
   PayoutStatus,
+  XrplNetwork,
 } from '@app/shared';
 
 export interface SellerRow {
@@ -22,6 +23,8 @@ export interface SellerRow {
   price_asset: Asset;
   /** Which payment modes this seller accepts. */
   payment_mode: PaymentSetup;
+  /** Networks this seller is advertised on; never empty. */
+  networks: XrplNetwork[];
   /** XRPL address that registered (owns) this seller; null for legacy rows. */
   owner_address: string | null;
   created_at: Date;
@@ -34,6 +37,8 @@ export interface BotRow {
   seller_id: string;
   /** The bot's public XRPL paying address (never a seed). */
   wallet_address: string;
+  /** Network this bot transacts on. */
+  network: XrplNetwork;
   asset: Asset;
   payment_mode: PaymentMode;
   resource: string;
@@ -50,6 +55,12 @@ export interface ChallengeRow {
   id: string;
   nonce: string;
   seller_id: string;
+  /**
+   * The network this challenge must be settled on. Set at issuance (one
+   * challenge row per network) and never derived from process config — this is
+   * what binds a nonce to a single ledger.
+   */
+  network: XrplNetwork;
   /** Required amount in the asset's human unit. */
   amount: string;
   asset: Asset;
@@ -62,6 +73,8 @@ export interface ChallengeRow {
 export interface PaymentRow {
   id: string;
   challenge_id: string | null;
+  /** Network the settling transaction landed on. */
+  network: XrplNetwork;
   wallet_address: string;
   mode: PaymentMode;
   amount: string;
@@ -76,6 +89,8 @@ export interface PaymentRow {
 export interface UsageEventRow {
   id: string;
   seller_id: string;
+  /** Network this call was paid on. */
+  network: XrplNetwork;
   wallet_address: string;
   endpoint: string;
   amount: string;
@@ -88,6 +103,8 @@ export interface UsageEventRow {
 export interface ChannelRow {
   id: string;
   channel_id: string;
+  /** Network the PayChan lives on; `channel_id` is only unique within one. */
+  network: XrplNetwork;
   wallet_address: string;
   seller_id: string;
   /** Deposit in the asset's human unit (XRP; PayChan is XRP-native). */
@@ -117,6 +134,8 @@ export interface ChannelRow {
 export interface ChannelPayoutRow {
   id: string;
   channel_id: string;
+  /** Network the redemption and forward Payment happen on. */
+  network: XrplNetwork;
   seller_id: string;
   /** Seller pay-to address the cut is forwarded to. */
   destination: string;
@@ -159,6 +178,8 @@ export interface AuditLogRow {
 export interface EscrowCreditRow {
   id: string;
   seller_id: string;
+  /** Network the deposit landed on. */
+  network: XrplNetwork;
   wallet_address: string;
   asset: Asset;
   deposit_tx_hash: string;

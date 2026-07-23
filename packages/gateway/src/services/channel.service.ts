@@ -16,7 +16,7 @@ import {
   explorerTxUrl,
   setupAllowsMode,
 } from '@app/shared';
-import type { AppEnv } from '@app/shared';
+import type { XrplNetwork } from '@app/shared';
 import {
   abandonChannelRedemption,
   beginChannelRedemption,
@@ -37,7 +37,7 @@ import { decimalGte } from '../util/decimal.js';
 import { unwrapTxResult } from './verify.service.js';
 import { rippledErrorCode } from './xrpl.service.js';
 import { channelDestinationFor } from '../deps.js';
-import type { GatewayDeps } from '../deps.js';
+import type { NetworkDeps } from '../deps.js';
 import { SETTLING_LEASE_STALE_MS } from '../constants.js';
 
 /** Whether a SETTLING lease is old enough to be reconciled safely. */
@@ -64,10 +64,10 @@ export type RegisterChannelResult =
  * below one call price, and is idempotent on `channelId`.
  */
 export async function registerChannel(
-  deps: GatewayDeps,
+  deps: NetworkDeps,
   input: RegisterChannelInput,
 ): Promise<RegisterChannelResult> {
-  const existing = await getChannelByChannelId(deps.pool, input.channelId);
+  const existing = await getChannelByChannelId(deps.pool, deps.network, input.channelId);
   if (existing) {
     if (existing.seller_id !== input.sellerId || existing.wallet_address !== input.walletAddress) {
       return { ok: false, reason: 'channel is already registered to a different seller or wallet' };
@@ -130,6 +130,7 @@ export async function registerChannel(
 
   const channel = await createChannel(deps.pool, {
     channelId: input.channelId,
+    network: deps.network,
     walletAddress: input.walletAddress,
     sellerId: seller.id,
     depositAmount: depositHuman,
@@ -157,16 +158,16 @@ export interface RedeemChannelResult {
  * the aggregate claim is settled on chain; the per-call credit spends were
  * already recorded off-ledger as usage events.
  */
-/** The subset of {@link GatewayDeps} the redeem path needs (no redis / base URL). */
-export type RedeemDeps = Pick<GatewayDeps, 'pool' | 'xrpl' | 'env'>;
+/** The subset of {@link NetworkDeps} the redeem path needs (no redis / base URL). */
+export type RedeemDeps = Pick<NetworkDeps, 'pool' | 'xrpl' | 'env' | 'network'>;
 
 export async function redeemChannel(
   deps: RedeemDeps,
   channelId: string,
 ): Promise<RedeemChannelResult> {
-  let channel = await beginChannelRedemption(deps.pool, channelId);
+  let channel = await beginChannelRedemption(deps.pool, deps.network, channelId);
   if (!channel) {
-    const known = await getChannelByChannelId(deps.pool, channelId);
+    const known = await getChannelByChannelId(deps.pool, deps.network, channelId);
     if (!known) return { result: SettleResult.REJECTED, reason: 'unknown channel' };
     // A crash between the on-chain claim and the watermark write leaves the
     // lease held forever; reconcile against the ledger, then retry once. A
@@ -182,7 +183,7 @@ export async function redeemChannel(
           reason: 'channel reconciliation failed; try again later',
         };
       }
-      channel = await beginChannelRedemption(deps.pool, channelId);
+      channel = await beginChannelRedemption(deps.pool, deps.network, channelId);
     }
     if (!channel) {
       return {
@@ -192,7 +193,7 @@ export async function redeemChannel(
     }
   }
   if (!channel.last_claim_signature || !channel.public_key) {
-    await abandonChannelRedemption(deps.pool, channelId);
+    await abandonChannelRedemption(deps.pool, deps.network, channelId);
     return { result: SettleResult.REJECTED, reason: 'no claims to redeem' };
   }
 
@@ -204,7 +205,7 @@ export async function redeemChannel(
     ledgerChannel = await deps.xrpl.getPaymentChannel(channelId);
   } catch {
     // Nothing has been broadcast yet, so releasing the lease is safe.
-    await abandonChannelRedemption(deps.pool, channelId);
+    await abandonChannelRedemption(deps.pool, deps.network, channelId);
     return {
       result: SettleResult.REJECTED,
       reason: 'could not read the channel from the ledger; try again',
@@ -217,7 +218,7 @@ export async function redeemChannel(
     ledgerChannel.PublicKey !== channel.public_key ||
     ledgerChannel.Balance !== previouslyRedeemedDrops
   ) {
-    await abandonChannelRedemption(deps.pool, channelId);
+    await abandonChannelRedemption(deps.pool, deps.network, channelId);
     return {
       result: SettleResult.REJECTED,
       reason: 'channel ledger state diverged; reconciliation is required before redemption',
@@ -247,7 +248,12 @@ export async function redeemChannel(
   let payout: ChannelPayoutRow | null = null;
   try {
     await client.query('BEGIN');
-    const completed = await completeChannelRedemption(client, channelId, channel.credits_used);
+    const completed = await completeChannelRedemption(
+      client,
+      deps.network,
+      channelId,
+      channel.credits_used,
+    );
     if (!completed) {
       // Leave the channel SETTLING; the maintenance sweep reconciles it from
       // the ledger (the on-chain claim above is already durable).
@@ -255,6 +261,7 @@ export async function redeemChannel(
     }
     await insertPayment(client, {
       challengeId: null,
+      network: deps.network,
       walletAddress: channel.wallet_address,
       mode: PaymentMode.PREPAID_CREDITS,
       amount: String(dropsToXrp(deltaDrops)),
@@ -266,6 +273,7 @@ export async function redeemChannel(
     if (seller && BigInt(sellerCutDrops) > 0n) {
       payout = await insertChannelPayout(client, {
         channelId,
+        network: deps.network,
         sellerId: seller.id,
         destination: seller.pay_to_address,
         amount: String(dropsToXrp(sellerCutDrops)),
@@ -287,7 +295,7 @@ export async function redeemChannel(
   return {
     result: SettleResult.SETTLED,
     txHash,
-    explorerUrl: buildExplorerUrl(deps.env, txHash),
+    explorerUrl: buildExplorerUrl(deps.network, txHash),
     amount: String(dropsToXrp(deltaDrops)),
   };
 }
@@ -392,7 +400,7 @@ export async function reconcileSettlingChannel(
 
   const ledgerChannel = await deps.xrpl.getPaymentChannel(channel.channel_id);
   if (!ledgerChannel) {
-    await setChannelStatus(deps.pool, channel.channel_id, ChannelStatus.CLOSED);
+    await setChannelStatus(deps.pool, deps.network, channel.channel_id, ChannelStatus.CLOSED);
     console.warn(`[channel] ${channel.channel_id} no longer exists on ledger; marked CLOSED`);
     return;
   }
@@ -401,7 +409,7 @@ export async function reconcileSettlingChannel(
   const redeemed = BigInt(xrpToDrops(channel.redeemed_amount));
   if (ledgerBalance <= redeemed) {
     // No claim landed; the redemption simply died before submitting.
-    await abandonChannelRedemption(deps.pool, channel.channel_id);
+    await abandonChannelRedemption(deps.pool, deps.network, channel.channel_id);
     return;
   }
 
@@ -413,7 +421,12 @@ export async function reconcileSettlingChannel(
   const client = await deps.pool.connect();
   try {
     await client.query('BEGIN');
-    const completed = await completeChannelRedemption(client, channel.channel_id, balanceHuman);
+    const completed = await completeChannelRedemption(
+      client,
+      deps.network,
+      channel.channel_id,
+      balanceHuman,
+    );
     if (!completed) {
       throw new Error(
         `channel ${channel.channel_id} ledger balance ${balanceHuman} does not reconcile with its stored claims`,
@@ -422,6 +435,7 @@ export async function reconcileSettlingChannel(
     if (seller && BigInt(sellerCutDrops) > 0n) {
       await insertChannelPayout(client, {
         channelId: channel.channel_id,
+        network: deps.network,
         sellerId: seller.id,
         destination: seller.pay_to_address,
         amount: String(dropsToXrp(sellerCutDrops)),
@@ -450,8 +464,8 @@ function splitFeeDrops(
   return { sellerCutDrops: (total - feeDrops).toString(), feeDrops: feeDrops.toString() };
 }
 
-function buildExplorerUrl(env: AppEnv, txHash: string): string {
-  return explorerTxUrl(env.xrplNetwork, txHash);
+function buildExplorerUrl(network: XrplNetwork, txHash: string): string {
+  return explorerTxUrl(network, txHash);
 }
 
 /**

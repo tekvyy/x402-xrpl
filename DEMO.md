@@ -54,12 +54,12 @@ Once in, two tabs:
 
 ## Mainnet vs testnet
 
-The demo forces `XRPL_NETWORK=TESTNET` so wallets can be faucet-funded. To run
-against **mainnet**, start the packages individually with a real, funded
-`GATEWAY_XRPL_SEED` and `XRPL_NETWORK=MAINNET` (the only network-dependent knobs
-are `XRPL_NETWORK` / `XRPL_ENDPOINT` and the `RLUSD_ISSUER` for that network —
-see `.env.example`). Every gateway-submitted transaction carries the configured
-`SOURCE_TAG` on both networks.
+The demo runs testnet-only so wallets can be faucet-funded. The gateway itself
+serves whatever `ENABLED_NETWORKS` lists, so **mainnet is additive, not a
+switch**: set `ENABLED_NETWORKS=TESTNET,MAINNET` plus a funded
+`GATEWAY_XRPL_SEED_MAINNET`, and sellers choose which networks to advertise on.
+Every gateway-submitted transaction carries the configured `SOURCE_TAG` on
+every network. See `MAINNET.md`.
 
 ## Source-tag audit
 

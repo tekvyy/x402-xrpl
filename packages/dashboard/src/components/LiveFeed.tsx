@@ -4,7 +4,6 @@
  */
 import { explorerTxUrl } from '@app/shared';
 import type { UsageStreamEvent } from '../api.js';
-import { XRPL_NETWORK } from '../config.js';
 import type { FeedStatus } from '../hooks/useLiveFeed.js';
 import {
   formatAmount,
@@ -57,7 +56,7 @@ export function LiveFeed({ events, status }: LiveFeedProps): JSX.Element {
               {event.txHash ? (
                 <a
                   className="feed-tx"
-                  href={explorerTxUrl(XRPL_NETWORK, event.txHash)}
+                  href={explorerTxUrl(event.network, event.txHash)}
                   target="_blank"
                   rel="noreferrer"
                   title={event.txHash}

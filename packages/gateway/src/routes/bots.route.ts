@@ -7,7 +7,14 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { Asset, MAX_UINT32, PaymentMode, isClassicAddress, setupAllowsMode } from '@app/shared';
+import {
+  Asset,
+  MAX_UINT32,
+  PaymentMode,
+  XrplNetwork,
+  isClassicAddress,
+  setupAllowsMode,
+} from '@app/shared';
 import {
   createBot,
   deleteBot,
@@ -18,6 +25,7 @@ import {
 } from '../db/repositories.js';
 import type { BotRow, SellerRow } from '../db/types.js';
 import { isPositiveMonetaryAmount } from '../util/decimal.js';
+import { payableNetworks } from '../services/challenge.service.js';
 import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
 
@@ -35,6 +43,8 @@ const CreateBotSchema = z
     walletAddress: z.string().refine(isClassicAddress, 'must be a valid XRPL classic address'),
     asset: z.nativeEnum(Asset),
     paymentMode: z.nativeEnum(PaymentMode),
+    /** Which network this bot pays on; must be one the seller advertises. */
+    network: z.nativeEnum(XrplNetwork),
     resource: z.string().min(1).max(512),
     sourceTag: z.number().int().nonnegative().max(MAX_UINT32).optional(),
     maxAmount: decimalAmount.optional(),
@@ -62,6 +72,7 @@ function toBotResponse(bot: BotRow): Record<string, unknown> {
     label: bot.label,
     sellerId: bot.seller_id,
     walletAddress: bot.wallet_address,
+    network: bot.network,
     asset: bot.asset,
     paymentMode: bot.payment_mode,
     resource: bot.resource,
@@ -84,7 +95,7 @@ function renderBotEnv(deps: GatewayDeps, bot: BotRow, seller: SellerRow): string
     '# Fill in AGENT_SEED with your own funded XRPL wallet seed. It is never',
     '# uploaded to the gateway — the bot signs and pays locally.',
     '',
-    `XRPL_NETWORK=${deps.env.xrplNetwork}`,
+    `XRPL_NETWORK=${bot.network}`,
     `GATEWAY_URL=${deps.publicBaseUrl}`,
     `SELLER_ID=${bot.seller_id}`,
     'AGENT_SEED=sEdREPLACE_WITH_YOUR_WALLET_SEED',
@@ -112,12 +123,22 @@ export function registerBotRoutes(app: FastifyInstance, deps: GatewayDeps): void
         .code(400)
         .send({ error: `seller does not accept ${parsed.data.paymentMode} payments` });
     }
+    // A bot can only pay on a network the seller advertises AND this gateway
+    // serves, or its very first call would 402 with nothing it can settle.
+    if (!payableNetworks(deps, seller).includes(parsed.data.network)) {
+      return reply.code(400).send({
+        error: `seller is not payable on ${parsed.data.network}`,
+        sellerNetworks: seller.networks,
+        enabledNetworks: deps.env.enabledNetworks,
+      });
+    }
 
     const bot = await createBot(deps.pool, {
       ownerAddress: request.ownerAddress!,
       label: parsed.data.label,
       sellerId: parsed.data.sellerId,
       walletAddress: parsed.data.walletAddress,
+      network: parsed.data.network,
       asset: parsed.data.asset,
       paymentMode: parsed.data.paymentMode,
       resource: normalizeResource(parsed.data.resource),

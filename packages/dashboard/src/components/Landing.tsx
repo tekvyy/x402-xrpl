@@ -178,7 +178,7 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
         <div className="term" aria-label="An x402 payment exchange">
           <div className="term-bar">
             <span className="term-title">agent@xrpl:~</span>
-            <span className="term-net">{catalog?.network ?? 'TESTNET'}</span>
+            <span className="term-net">{catalog?.networks.join(' + ') ?? 'TESTNET'}</span>
           </div>
           <pre className="term-body">
             {TRACE.slice(0, typedLines).map((line, index) => (
@@ -236,7 +236,7 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           <h2 className="panel-title">Service registry</h2>
           <span className="feed-status feed-status-live">
             <span className="dot" />
-            {catalog ? `${services.length} live on ${catalog.network}` : 'connecting'}
+            {catalog ? `${services.length} live on ${catalog.networks.join(' + ')}` : 'connecting'}
           </span>
         </div>
 

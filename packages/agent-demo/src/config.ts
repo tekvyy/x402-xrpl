@@ -12,6 +12,8 @@ export interface AgentConfig {
   sellerId: string;
   /** XRPL wallet seed the agent pays from. */
   seed: string;
+  /** The network this agent transacts on. */
+  network: XrplNetwork;
   /** Resource path under the seller's API base URL (leading slash). */
   resource: string;
   /** Channel deposit in XRP (human units). */
@@ -47,6 +49,7 @@ export function loadAgentConfig(): AgentConfig {
     gatewayUrl: required('GATEWAY_URL').replace(/\/+$/, ''),
     sellerId: required('SELLER_ID'),
     seed: required('AGENT_SEED'),
+    network,
     resource: `/${(process.env.RESOURCE ?? 'data').replace(/^\/+/, '')}`,
     depositXrp: process.env.CHANNEL_DEPOSIT_XRP ?? '1',
     meteredCalls: Number.parseInt(process.env.METERED_CALLS ?? '20', 10),

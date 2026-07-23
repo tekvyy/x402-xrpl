@@ -53,6 +53,15 @@ export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDep
     if (!seller) return reply.code(404).send({ error: 'unknown seller' });
 
     const requirements = await issueChallenge(deps, seller, parsed.data.resource);
+    // A seller whose networks are all disabled here has nothing payable; say so
+    // rather than returning a 402 with an empty accepts[] the client can't use.
+    if (requirements.length === 0) {
+      return reply.code(503).send({
+        error: 'seller has no payable network on this gateway',
+        sellerNetworks: seller.networks,
+        enabledNetworks: deps.env.enabledNetworks,
+      });
+    }
     // The middleware relays this body verbatim as its 402 response, so it is a
     // complete spec `PaymentRequirementsResponse`, `error` included.
     return reply.send({
@@ -77,7 +86,12 @@ export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDep
       success: settled,
       ...(settled ? {} : { errorReason: outcome.reason ?? X402ErrorCode.UNEXPECTED_SETTLE_ERROR }),
       transaction: outcome.txHash ?? '',
-      network: x402NetworkId(deps.env.xrplNetwork),
+      // Echo the network actually settled on (resolved from the challenge), not
+      // a process-wide default. Falls back to the payload's own network when the
+      // request was rejected before the challenge could be resolved.
+      network: outcome.challenge
+        ? x402NetworkId(outcome.challenge.network)
+        : paymentPayload.network,
       payer: outcome.payer ?? paymentPayload.payload.payer,
       ...(outcome.explorerUrl ? { explorerUrl: outcome.explorerUrl } : {}),
     };
@@ -85,12 +99,15 @@ export function registerFacilitatorRoutes(app: FastifyInstance, deps: GatewayDep
   });
 
   app.get('/supported', async (_request, reply) => {
-    const network = x402NetworkId(deps.env.xrplNetwork);
+    // Both schemes on every network this gateway actually serves.
     const body: SupportedResponse = {
-      kinds: [
-        { x402Version: X402_VERSION, scheme: X402Scheme.EXACT, network },
-        { x402Version: X402_VERSION, scheme: X402Scheme.PAYCHAN, network },
-      ],
+      kinds: deps.env.enabledNetworks.flatMap((xrplNetwork) => {
+        const network = x402NetworkId(xrplNetwork);
+        return [
+          { x402Version: X402_VERSION, scheme: X402Scheme.EXACT, network },
+          { x402Version: X402_VERSION, scheme: X402Scheme.PAYCHAN, network },
+        ];
+      }),
     };
     return reply.send(body);
   });

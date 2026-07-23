@@ -3,9 +3,9 @@
  * to plug into the `@xrpl-x402/server` middleware, which meters the seller's
  * own routes and delegates verify/settle to the gateway.
  */
-import { useState } from 'react';
-import { Asset, PaymentSetup } from '@app/shared';
-import { createApi, UnauthorizedError, type CreateSellerInput } from '../api.js';
+import { useEffect, useState } from 'react';
+import { Asset, PaymentSetup, XrplNetwork } from '@app/shared';
+import { createApi, fetchCatalog, UnauthorizedError, type CreateSellerInput } from '../api.js';
 import { Spinner } from './States.js';
 
 interface RegisterApiFormProps {
@@ -21,6 +21,19 @@ const EMPTY: CreateSellerInput = {
   priceAmount: '',
   priceAsset: Asset.XRP,
   paymentMode: PaymentSetup.PAY_PER_CALL,
+  networks: [],
+};
+
+/** Buyer-facing wording for each network, so "testnet" reads as "free to try". */
+const NETWORK_LABELS: Record<XrplNetwork, { title: string; detail: string }> = {
+  [XrplNetwork.TESTNET]: {
+    title: 'Testnet',
+    detail: 'Free to call with faucet XRP. Use this to try the integration.',
+  },
+  [XrplNetwork.MAINNET]: {
+    title: 'Mainnet',
+    detail: 'Real XRP. Callers pay you for real.',
+  },
 };
 
 /** The two seller setups plus the combined one, with buyer-facing wording. */
@@ -51,6 +64,39 @@ export function RegisterApiForm({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [sellerId, setSellerId] = useState<string | null>(null);
+  // Which networks this gateway actually serves. Offering a network it does not
+  // serve would just produce a 400 on submit, so the picker mirrors the gateway.
+  const [available, setAvailable] = useState<XrplNetwork[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalog()
+      .then((catalog) => {
+        if (cancelled) return;
+        setAvailable(catalog.networks);
+        // Preselect testnet when offered: the safe default is the one that
+        // cannot cost the seller's callers real money.
+        const preferred = catalog.networks.includes(XrplNetwork.TESTNET)
+          ? [XrplNetwork.TESTNET]
+          : catalog.networks.slice(0, 1);
+        setForm((prev) => (prev.networks.length === 0 ? { ...prev, networks: preferred } : prev));
+      })
+      .catch(() => {
+        // Non-fatal: the gateway validates networks on submit anyway.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function toggleNetwork(network: XrplNetwork): void {
+    setForm((prev) => ({
+      ...prev,
+      networks: prev.networks.includes(network)
+        ? prev.networks.filter((n) => n !== network)
+        : [...prev.networks, network],
+    }));
+  }
 
   function set<K extends keyof CreateSellerInput>(key: K, value: CreateSellerInput[K]): void {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -69,13 +115,17 @@ export function RegisterApiForm({
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
+    if (form.networks.length === 0) {
+      setError('Pick at least one network for callers to pay on.');
+      return;
+    }
     setLoading(true);
     setError(null);
     setSellerId(null);
     try {
       const result = await createApi(token, form);
       setSellerId(result.sellerId);
-      setForm(EMPTY);
+      setForm({ ...EMPTY, networks: form.networks });
       onCreated();
     } catch (err) {
       if (err instanceof UnauthorizedError) return onUnauthorized();
@@ -146,6 +196,23 @@ export function RegisterApiForm({
             ))}
           </select>
         </label>
+        <fieldset className="setup-picker">
+          <legend>Networks callers can pay on</legend>
+          {available.length === 0 && <span className="setup-detail">Loading networks…</span>}
+          {available.map((network) => (
+            <label key={network} className="setup-option">
+              <input
+                type="checkbox"
+                name="networks"
+                value={network}
+                checked={form.networks.includes(network)}
+                onChange={() => toggleNetwork(network)}
+              />
+              <span className="setup-title">{NETWORK_LABELS[network].title}</span>
+              <span className="setup-detail">{NETWORK_LABELS[network].detail}</span>
+            </label>
+          ))}
+        </fieldset>
         <fieldset className="setup-picker">
           <legend>How callers pay</legend>
           {SETUP_OPTIONS.map((option) => (

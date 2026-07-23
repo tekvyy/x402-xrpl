@@ -2,22 +2,27 @@
  * Typed, validated runtime configuration. `loadEnv` throws a clear aggregated
  * error listing every missing/invalid key so misconfiguration fails fast at
  * boot rather than deep inside a request handler.
+ *
+ * The gateway serves one or more XRPL networks at once. `ENABLED_NETWORKS`
+ * selects them and each one carries its own wallet, endpoint, and RLUSD issuer
+ * — a network is only configurable if it is enabled, so a testnet-only
+ * deployment never needs mainnet keys or funds.
  */
 import { z } from 'zod';
 import { XrplNetwork } from './enums.js';
-import { isClassicAddress, XRPL_ENDPOINTS } from './constants.js';
+import { isClassicAddress, RLUSD_ISSUERS, XRPL_ENDPOINTS } from './constants.js';
 
 const EnvSchema = z.object({
-  XRPL_NETWORK: z.nativeEnum(XrplNetwork),
-  // Optional: falls back to the network default endpoint when unset.
-  XRPL_ENDPOINT: z.string().url().optional(),
-  GATEWAY_XRPL_SEED: z.string().min(1, 'GATEWAY_XRPL_SEED is required'),
+  // Comma-separated networks this deployment serves, e.g. "TESTNET" or
+  // "TESTNET,MAINNET". Per-network keys below are required for each entry.
+  ENABLED_NETWORKS: z.string().optional(),
   // Secret used to sign stateless dashboard session (JWT-style HMAC) tokens.
   // Require at least 256 bits when generated as hexadecimal (64 chars) and a
   // meaningful floor for other encodings; operators should use a CSPRNG.
   AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
+  // The team source tag stamped on every gateway-submitted transaction. Shared
+  // across networks: it identifies the operator, not the ledger.
   SOURCE_TAG: z.coerce.number().int().nonnegative(),
-  RLUSD_ISSUER: z.string().min(1, 'RLUSD_ISSUER is required'),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   GATEWAY_PORT: z.coerce.number().int().positive(),
@@ -56,15 +61,26 @@ const EnvSchema = z.object({
     }),
 });
 
-/** Fully resolved config, with `xrplEndpoint` defaulted from the network. */
-export interface AppEnv {
-  xrplNetwork: XrplNetwork;
-  xrplEndpoint: string;
+/** Everything needed to transact on one XRPL network. */
+export interface NetworkConfig {
+  network: XrplNetwork;
+  /** WebSocket endpoint, defaulted from the network when not overridden. */
+  endpoint: string;
+  /** Family seed for this network's gateway wallet. */
   gatewayXrplSeed: string;
+  /** RLUSD issuing account on this network. */
+  rlusdIssuer: string;
+}
+
+/** Fully resolved config. */
+export interface AppEnv {
+  /** Networks this deployment serves, in `ENABLED_NETWORKS` order. Never empty. */
+  enabledNetworks: XrplNetwork[];
+  /** Per-network XRPL config. Only enabled networks are present. */
+  networks: Partial<Readonly<Record<XrplNetwork, NetworkConfig>>>;
   /** Secret for signing dashboard session tokens. */
   authSecret: string;
   sourceTag: number;
-  rlusdIssuer: string;
   databaseUrl: string;
   redisUrl: string;
   gatewayPort: number;
@@ -79,27 +95,122 @@ export interface AppEnv {
   adminAddresses: string[];
 }
 
+/** Whether `env` serves `network`. */
+export function isNetworkEnabled(env: AppEnv, network: XrplNetwork): boolean {
+  return env.networks[network] !== undefined;
+}
+
+/**
+ * Resolve the config for `network`.
+ * @throws Error when the network is not enabled — callers must gate on
+ * {@link isNetworkEnabled} first, so reaching here is a programming error
+ * rather than bad input.
+ */
+export function networkConfig(env: AppEnv, network: XrplNetwork): NetworkConfig {
+  const config = env.networks[network];
+  if (!config) {
+    throw new Error(
+      `network ${network} is not enabled on this gateway ` +
+        `(ENABLED_NETWORKS=${env.enabledNetworks.join(',')})`,
+    );
+  }
+  return config;
+}
+
+/** Parse `ENABLED_NETWORKS`, collecting errors rather than throwing on the first. */
+function parseEnabledNetworks(raw: string | undefined, errors: string[]): XrplNetwork[] {
+  const names = (raw ?? XrplNetwork.TESTNET)
+    .split(',')
+    .map((name) => name.trim().toUpperCase())
+    .filter((name) => name.length > 0);
+
+  if (names.length === 0) {
+    errors.push('  - ENABLED_NETWORKS: must name at least one network');
+    return [];
+  }
+
+  const valid = Object.values(XrplNetwork) as string[];
+  const networks: XrplNetwork[] = [];
+  for (const name of names) {
+    if (!valid.includes(name)) {
+      errors.push(
+        `  - ENABLED_NETWORKS: unknown network "${name}" (expected ${valid.join(' or ')})`,
+      );
+      continue;
+    }
+    const network = name as XrplNetwork;
+    if (networks.includes(network)) {
+      errors.push(`  - ENABLED_NETWORKS: ${network} listed more than once`);
+      continue;
+    }
+    networks.push(network);
+  }
+  return networks;
+}
+
+/**
+ * Resolve per-network XRPL config, collecting errors. Each enabled network
+ * needs its own seed; the endpoint and RLUSD issuer fall back to the network's
+ * well-known defaults.
+ */
+function resolveNetworks(
+  source: NodeJS.ProcessEnv,
+  enabled: XrplNetwork[],
+  errors: string[],
+): Partial<Record<XrplNetwork, NetworkConfig>> {
+  const networks: Partial<Record<XrplNetwork, NetworkConfig>> = {};
+
+  for (const network of enabled) {
+    const seed = source[`GATEWAY_XRPL_SEED_${network}`];
+    if (seed === undefined || seed.length === 0) {
+      errors.push(
+        `  - GATEWAY_XRPL_SEED_${network}: required because ${network} is in ENABLED_NETWORKS`,
+      );
+      continue;
+    }
+
+    const issuer = source[`RLUSD_ISSUER_${network}`] ?? RLUSD_ISSUERS[network];
+    if (!isClassicAddress(issuer)) {
+      errors.push(`  - RLUSD_ISSUER_${network}: must be a valid XRPL classic address`);
+      continue;
+    }
+
+    networks[network] = {
+      network,
+      endpoint: source[`XRPL_ENDPOINT_${network}`] ?? XRPL_ENDPOINTS[network],
+      gatewayXrplSeed: seed,
+      rlusdIssuer: issuer,
+    };
+  }
+
+  return networks;
+}
+
 /**
  * Validate `source` (defaults to `process.env`) and return typed config.
  * @throws Error with a readable, multi-line message when any key is invalid.
  */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   const parsed = EnvSchema.safeParse(source);
-  if (!parsed.success) {
-    const issues = parsed.error.issues
-      .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
-      .join('\n');
-    throw new Error(`Invalid environment configuration:\n${issues}`);
+  const errors: string[] = parsed.success
+    ? []
+    : parsed.error.issues.map(
+        (issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`,
+      );
+
+  const enabledNetworks = parseEnabledNetworks(source.ENABLED_NETWORKS, errors);
+  const networks = resolveNetworks(source, enabledNetworks, errors);
+
+  if (errors.length > 0 || !parsed.success) {
+    throw new Error(`Invalid environment configuration:\n${errors.join('\n')}`);
   }
 
   const data = parsed.data;
   return {
-    xrplNetwork: data.XRPL_NETWORK,
-    xrplEndpoint: data.XRPL_ENDPOINT ?? XRPL_ENDPOINTS[data.XRPL_NETWORK],
-    gatewayXrplSeed: data.GATEWAY_XRPL_SEED,
+    enabledNetworks,
+    networks,
     authSecret: data.AUTH_SECRET,
     sourceTag: data.SOURCE_TAG,
-    rlusdIssuer: data.RLUSD_ISSUER,
     databaseUrl: data.DATABASE_URL,
     redisUrl: data.REDIS_URL,
     gatewayPort: data.GATEWAY_PORT,

@@ -4,7 +4,7 @@
  * spent off-ledger. This path is deliberately isolated from PayChan: it has its
  * own table and never touches channel settlement. Enable via `ESCROW_ENABLED`.
  */
-import { Asset } from '@app/shared';
+import { Asset, networkConfig } from '@app/shared';
 import {
   createEscrowCredit,
   debitEscrowCredit,
@@ -18,7 +18,7 @@ import { publishUsageEvent } from './usage.service.js';
 import { unwrapTxResult } from './verify.service.js';
 import { XrplService } from './xrpl.service.js';
 import { decimalGte, isDecimalString } from '../util/decimal.js';
-import type { GatewayDeps } from '../deps.js';
+import type { NetworkDeps } from '../deps.js';
 
 export interface EscrowDepositInput {
   sellerId: string;
@@ -69,10 +69,10 @@ function deliveredAmount(tx: RawTx): unknown {
  * wallet's escrow balance. Idempotent on the deposit tx hash.
  */
 export async function depositEscrow(
-  deps: GatewayDeps,
+  deps: NetworkDeps,
   input: EscrowDepositInput,
 ): Promise<EscrowDepositResult> {
-  const existing = await getEscrowCreditByTxHash(deps.pool, input.txHash);
+  const existing = await getEscrowCreditByTxHash(deps.pool, deps.network, input.txHash);
   if (existing) return { ok: true, credit: existing };
 
   const seller = await getSeller(deps.pool, input.sellerId);
@@ -95,7 +95,11 @@ export async function depositEscrow(
     return { ok: false, reason: 'deposit sender does not match the wallet' };
   }
 
-  const amount = readAmount(deliveredAmount(tx), seller.price_asset, deps.env.rlusdIssuer);
+  const amount = readAmount(
+    deliveredAmount(tx),
+    seller.price_asset,
+    networkConfig(deps.env, deps.network).rlusdIssuer,
+  );
   if (!amount.ok) return { ok: false, reason: amount.reason };
   if (!decimalGte(amount.human, seller.price_amount)) {
     return { ok: false, reason: 'deposit is below one call price' };
@@ -103,6 +107,7 @@ export async function depositEscrow(
 
   const credit = await createEscrowCredit(deps.pool, {
     sellerId: seller.id,
+    network: deps.network,
     walletAddress: input.walletAddress,
     asset: seller.price_asset,
     depositTxHash: input.txHash,
@@ -119,7 +124,7 @@ export type EscrowDebitResult = { ok: true } | { ok: false; reason: string };
  * balance is insufficient.
  */
 export async function debitEscrow(
-  deps: GatewayDeps,
+  deps: NetworkDeps,
   sellerId: string,
   walletAddress: string,
   endpoint: string,
@@ -137,6 +142,7 @@ export async function debitEscrow(
     }
     usageEvent = await insertUsageEvent(client, {
       sellerId,
+      network: deps.network,
       walletAddress,
       endpoint,
       amount,

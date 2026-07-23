@@ -8,7 +8,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { Asset, PaymentSetup, isClassicAddress } from '@app/shared';
+import { Asset, PaymentSetup, XrplNetwork, isClassicAddress } from '@app/shared';
 import {
   createSeller,
   getSeller,
@@ -17,9 +17,10 @@ import {
 } from '../db/repositories.js';
 import type { SellerRow } from '../db/types.js';
 import { isPositiveMonetaryAmount } from '../util/decimal.js';
+import { payableNetworks } from '../services/challenge.service.js';
 import { requireAuth } from './authenticate.js';
 import type { GatewayDeps } from '../deps.js';
-import { channelDestinationFor } from '../deps.js';
+import { channelDestinationFor, forNetwork } from '../deps.js';
 
 const CreateSellerSchema = z
   .object({
@@ -34,6 +35,9 @@ const CreateSellerSchema = z
       ),
     priceAsset: z.nativeEnum(Asset),
     paymentMode: z.nativeEnum(PaymentSetup),
+    // Networks to advertise on. A seller may serve testnet, mainnet, or both;
+    // the 402 `accepts[]` carries one group of entries per network.
+    networks: z.array(z.nativeEnum(XrplNetwork)).min(1, 'name at least one network'),
   })
   .refine(
     // PayChan is XRP-native: any setup that accepts credits must price in XRP.
@@ -44,8 +48,16 @@ const CreateSellerSchema = z
     },
   );
 
-/** Public projection of a seller row (never exposes internal-only fields). */
+/**
+ * Public projection of a seller row (never exposes internal-only fields).
+ *
+ * `channelDestinations` is keyed by network because the gateway holds a
+ * different wallet on each ledger — a client opening a prepaid channel must use
+ * the destination for the network it is paying on. Only networks this gateway
+ * currently serves are listed, so a client never sees an address it cannot pay.
+ */
 function toSellerResponse(deps: GatewayDeps, seller: SellerRow): Record<string, unknown> {
+  const payable = payableNetworks(deps, seller);
   return {
     sellerId: seller.id,
     name: seller.name,
@@ -54,9 +66,14 @@ function toSellerResponse(deps: GatewayDeps, seller: SellerRow): Record<string, 
     priceAmount: seller.price_amount,
     priceAsset: seller.price_asset,
     paymentMode: seller.payment_mode,
-    // Where a prepaid PayChan channel must be opened: the gateway when a platform
-    // fee is active (it redeems and forwards the seller's cut), else the seller.
-    channelDestination: channelDestinationFor(deps, seller),
+    networks: seller.networks,
+    payableNetworks: payable,
+    // Where a prepaid PayChan channel must be opened, per network: the gateway
+    // when a platform fee is active (it redeems and forwards the seller's cut),
+    // else the seller.
+    channelDestinations: Object.fromEntries(
+      payable.map((network) => [network, channelDestinationFor(forNetwork(deps, network), seller)]),
+    ),
     platformFeeBps: deps.env.platformFeeBps,
   };
 }
@@ -68,6 +85,15 @@ export function registerSellerRoutes(app: FastifyInstance, deps: GatewayDeps): v
     const parsed = CreateSellerSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: 'invalid seller', issues: parsed.error.issues });
+    }
+    // Refuse to register against a network this deployment does not serve:
+    // better a clear 400 now than a seller that advertises an unpayable network.
+    const unsupported = parsed.data.networks.filter((network) => !deps.xrplRegistry.has(network));
+    if (unsupported.length > 0) {
+      return reply.code(400).send({
+        error: `network(s) not served here: ${unsupported.join(', ')}`,
+        enabledNetworks: deps.env.enabledNetworks,
+      });
     }
     const seller = await createSeller(deps.pool, {
       ...parsed.data,
@@ -92,7 +118,7 @@ export function registerSellerRoutes(app: FastifyInstance, deps: GatewayDeps): v
   app.get('/catalog', async (_request, reply) => {
     const sellers = await listPublicSellers(deps.pool);
     return reply.send({
-      network: deps.env.xrplNetwork,
+      networks: deps.env.enabledNetworks,
       facilitator: deps.publicBaseUrl,
       services: sellers.map((seller) => toSellerResponse(deps, seller)),
     });

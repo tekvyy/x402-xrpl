@@ -3,7 +3,14 @@
  * so callers can run inside a transaction by passing a checked-out client.
  * SQL is parameterized; no string interpolation of user input.
  */
-import type { Asset, ChallengeStatus, ChannelStatus, PaymentMode, PaymentSetup } from '@app/shared';
+import type {
+  Asset,
+  ChallengeStatus,
+  ChannelStatus,
+  PaymentMode,
+  PaymentSetup,
+  XrplNetwork,
+} from '@app/shared';
 import type { Queryable } from './pool.js';
 import type {
   AuditLogRow,
@@ -24,6 +31,8 @@ export interface CreateSellerInput {
   priceAmount: string;
   priceAsset: Asset;
   paymentMode: PaymentSetup;
+  /** Networks to advertise this seller on; must not be empty. */
+  networks: XrplNetwork[];
   /** Owning XRPL address (from the authenticated session). */
   ownerAddress: string;
 }
@@ -31,8 +40,9 @@ export interface CreateSellerInput {
 export async function createSeller(db: Queryable, input: CreateSellerInput): Promise<SellerRow> {
   const { rows } = await db.query<SellerRow>(
     `INSERT INTO sellers
-       (name, origin_url, pay_to_address, price_amount, price_asset, payment_mode, owner_address)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (name, origin_url, pay_to_address, price_amount, price_asset, payment_mode,
+        networks, owner_address)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8)
      RETURNING *`,
     [
       input.name,
@@ -41,6 +51,7 @@ export async function createSeller(db: Queryable, input: CreateSellerInput): Pro
       input.priceAmount,
       input.priceAsset,
       input.paymentMode,
+      input.networks,
       input.ownerAddress,
     ],
   );
@@ -80,6 +91,8 @@ export async function listSellersByOwner(
 export interface CreateChallengeInput {
   nonce: string;
   sellerId: string;
+  /** The network this nonce may be settled on. */
+  network: XrplNetwork;
   amount: string;
   asset: Asset;
   resource: string;
@@ -91,10 +104,18 @@ export async function createChallenge(
   input: CreateChallengeInput,
 ): Promise<ChallengeRow> {
   const { rows } = await db.query<ChallengeRow>(
-    `INSERT INTO challenges (nonce, seller_id, amount, asset, resource, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO challenges (nonce, seller_id, network, amount, asset, resource, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [input.nonce, input.sellerId, input.amount, input.asset, input.resource, input.expiresAt],
+    [
+      input.nonce,
+      input.sellerId,
+      input.network,
+      input.amount,
+      input.asset,
+      input.resource,
+      input.expiresAt,
+    ],
   );
   return rows[0]!;
 }
@@ -132,6 +153,8 @@ export async function transitionChallengeStatus(
 
 export interface InsertPaymentInput {
   challengeId: string | null;
+  /** Network the settling transaction landed on. */
+  network: XrplNetwork;
   walletAddress: string;
   mode: PaymentMode;
   amount: string;
@@ -145,11 +168,13 @@ export interface InsertPaymentInput {
 export async function insertPayment(db: Queryable, input: InsertPaymentInput): Promise<PaymentRow> {
   const { rows } = await db.query<PaymentRow>(
     `INSERT INTO payments
-       (challenge_id, wallet_address, mode, amount, asset, tx_hash, source_tag, platform_fee)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (challenge_id, network, wallet_address, mode, amount, asset, tx_hash, source_tag,
+        platform_fee)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [
       input.challengeId,
+      input.network,
       input.walletAddress,
       input.mode,
       input.amount,
@@ -164,6 +189,8 @@ export async function insertPayment(db: Queryable, input: InsertPaymentInput): P
 
 export interface InsertUsageEventInput {
   sellerId: string;
+  /** Network this call was paid on. */
+  network: XrplNetwork;
   walletAddress: string;
   endpoint: string;
   amount: string;
@@ -177,11 +204,13 @@ export async function insertUsageEvent(
   input: InsertUsageEventInput,
 ): Promise<UsageEventRow> {
   const { rows } = await db.query<UsageEventRow>(
-    `INSERT INTO usage_events (seller_id, wallet_address, endpoint, amount, asset, mode, tx_hash)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO usage_events
+       (seller_id, network, wallet_address, endpoint, amount, asset, mode, tx_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [
       input.sellerId,
+      input.network,
       input.walletAddress,
       input.endpoint,
       input.amount,
@@ -195,6 +224,8 @@ export async function insertUsageEvent(
 
 export interface CreateChannelInput {
   channelId: string;
+  /** Network the PayChan lives on. */
+  network: XrplNetwork;
   walletAddress: string;
   sellerId: string;
   depositAmount: string;
@@ -210,12 +241,13 @@ export interface CreateChannelInput {
 export async function createChannel(db: Queryable, input: CreateChannelInput): Promise<ChannelRow> {
   const { rows } = await db.query<ChannelRow>(
     `INSERT INTO channels
-       (channel_id, wallet_address, seller_id, deposit_amount, asset, credits_total,
+       (channel_id, network, wallet_address, seller_id, deposit_amount, asset, credits_total,
         public_key, settle_delay, cancel_after)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
     [
       input.channelId,
+      input.network,
       input.walletAddress,
       input.sellerId,
       input.depositAmount,
@@ -231,16 +263,19 @@ export async function createChannel(db: Queryable, input: CreateChannelInput): P
 
 export async function getChannelByChannelId(
   db: Queryable,
+  network: XrplNetwork,
   channelId: string,
 ): Promise<ChannelRow | null> {
-  const { rows } = await db.query<ChannelRow>(`SELECT * FROM channels WHERE channel_id = $1`, [
-    channelId,
-  ]);
+  const { rows } = await db.query<ChannelRow>(
+    `SELECT * FROM channels WHERE network = $1 AND channel_id = $2`,
+    [network, channelId],
+  );
   return rows[0] ?? null;
 }
 
 export interface ApplyChannelClaimInput {
   channelId: string;
+  network: XrplNetwork;
   /** New cumulative amount (human unit) the claim authorizes. */
   newCumulative: string;
   /** Minimum increment this call must cover (the challenge price). */
@@ -267,43 +302,46 @@ export async function applyChannelClaim(
 ): Promise<ChannelRow | null> {
   const { rows } = await db.query<ChannelRow>(
     `UPDATE channels
-     SET credits_used = $2::numeric, last_claim_signature = $3
-     WHERE channel_id = $1
+     SET credits_used = $3::numeric, last_claim_signature = $4
+     WHERE network = $1 AND channel_id = $2
        AND status IN ('OPEN'::channel_status_enum, 'SETTLING'::channel_status_enum)
-       AND credits_used < $2::numeric
-       AND $2::numeric <= credits_total
-       AND ($2::numeric - credits_used) >= $4::numeric
+       AND credits_used < $3::numeric
+       AND $3::numeric <= credits_total
+       AND ($3::numeric - credits_used) >= $5::numeric
      RETURNING *`,
-    [input.channelId, input.newCumulative, input.signature, input.minIncrement],
+    [input.network, input.channelId, input.newCumulative, input.signature, input.minIncrement],
   );
   return rows[0] ?? null;
 }
 
 export async function setChannelStatus(
   db: Queryable,
+  network: XrplNetwork,
   channelId: string,
   status: ChannelStatus,
 ): Promise<void> {
-  await db.query(`UPDATE channels SET status = $2::channel_status_enum WHERE channel_id = $1`, [
-    channelId,
-    status,
-  ]);
+  await db.query(
+    `UPDATE channels SET status = $3::channel_status_enum
+     WHERE network = $1 AND channel_id = $2`,
+    [network, channelId, status],
+  );
 }
 
 /** Lease one outstanding redemption and return its stable cumulative snapshot. */
 export async function beginChannelRedemption(
   db: Queryable,
+  network: XrplNetwork,
   channelId: string,
 ): Promise<ChannelRow | null> {
   const { rows } = await db.query<ChannelRow>(
     `UPDATE channels
      SET status = 'SETTLING'::channel_status_enum, settling_since = now()
-     WHERE channel_id = $1
+     WHERE network = $1 AND channel_id = $2
        AND status = 'OPEN'::channel_status_enum
        AND credits_used > redeemed_amount
        AND last_claim_signature IS NOT NULL
      RETURNING *`,
-    [channelId],
+    [network, channelId],
   );
   return rows[0] ?? null;
 }
@@ -311,31 +349,37 @@ export async function beginChannelRedemption(
 /** Persist a validated cumulative redemption and release the redemption lease. */
 export async function completeChannelRedemption(
   db: Queryable,
+  network: XrplNetwork,
   channelId: string,
   redeemedAmount: string,
 ): Promise<ChannelRow | null> {
   const { rows } = await db.query<ChannelRow>(
     `UPDATE channels
-     SET redeemed_amount = $2::numeric,
+     SET redeemed_amount = $3::numeric,
          status = 'OPEN'::channel_status_enum,
          settling_since = NULL
-     WHERE channel_id = $1
+     WHERE network = $1 AND channel_id = $2
        AND status = 'SETTLING'::channel_status_enum
-       AND redeemed_amount < $2::numeric
-       AND $2::numeric <= credits_used
+       AND redeemed_amount < $3::numeric
+       AND $3::numeric <= credits_used
      RETURNING *`,
-    [channelId, redeemedAmount],
+    [network, channelId, redeemedAmount],
   );
   return rows[0] ?? null;
 }
 
 /** Release a failed redemption lease without changing the ledger watermark. */
-export async function abandonChannelRedemption(db: Queryable, channelId: string): Promise<void> {
+export async function abandonChannelRedemption(
+  db: Queryable,
+  network: XrplNetwork,
+  channelId: string,
+): Promise<void> {
   await db.query(
     `UPDATE channels
      SET status = 'OPEN'::channel_status_enum, settling_since = NULL
-     WHERE channel_id = $1 AND status = 'SETTLING'::channel_status_enum`,
-    [channelId],
+     WHERE network = $1 AND channel_id = $2
+       AND status = 'SETTLING'::channel_status_enum`,
+    [network, channelId],
   );
 }
 
@@ -359,6 +403,8 @@ export async function listStaleSettlingChannels(
 
 export interface InsertChannelPayoutInput {
   channelId: string;
+  /** Network the redemption happened on; part of the FK to `channels`. */
+  network: XrplNetwork;
   sellerId: string;
   destination: string;
   /** Owed seller cut in XRP (human unit). */
@@ -373,10 +419,18 @@ export async function insertChannelPayout(
   input: InsertChannelPayoutInput,
 ): Promise<ChannelPayoutRow> {
   const { rows } = await db.query<ChannelPayoutRow>(
-    `INSERT INTO channel_payouts (channel_id, seller_id, destination, amount, redeem_tx_hash)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO channel_payouts
+       (channel_id, network, seller_id, destination, amount, redeem_tx_hash)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [input.channelId, input.sellerId, input.destination, input.amount, input.redeemTxHash],
+    [
+      input.channelId,
+      input.network,
+      input.sellerId,
+      input.destination,
+      input.amount,
+      input.redeemTxHash,
+    ],
   );
   return rows[0]!;
 }
@@ -513,6 +567,8 @@ export async function deleteExpiredChallenges(db: Queryable, cutoff: Date): Prom
 
 export interface CreateEscrowCreditInput {
   sellerId: string;
+  /** Network the deposit landed on. */
+  network: XrplNetwork;
   walletAddress: string;
   asset: Asset;
   depositTxHash: string;
@@ -525,10 +581,17 @@ export async function createEscrowCredit(
 ): Promise<EscrowCreditRow> {
   const { rows } = await db.query<EscrowCreditRow>(
     `INSERT INTO escrow_credits
-       (seller_id, wallet_address, asset, deposit_tx_hash, credits_total)
-     VALUES ($1, $2, $3, $4, $5)
+       (seller_id, network, wallet_address, asset, deposit_tx_hash, credits_total)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [input.sellerId, input.walletAddress, input.asset, input.depositTxHash, input.creditsTotal],
+    [
+      input.sellerId,
+      input.network,
+      input.walletAddress,
+      input.asset,
+      input.depositTxHash,
+      input.creditsTotal,
+    ],
   );
   return rows[0]!;
 }
@@ -631,6 +694,8 @@ export interface CreateBotInput {
   label: string;
   sellerId: string;
   walletAddress: string;
+  /** Network this bot transacts on. */
+  network: XrplNetwork;
   asset: Asset;
   paymentMode: PaymentMode;
   resource: string;
@@ -643,15 +708,16 @@ export interface CreateBotInput {
 export async function createBot(db: Queryable, input: CreateBotInput): Promise<BotRow> {
   const { rows } = await db.query<BotRow>(
     `INSERT INTO bots
-       (owner_address, label, seller_id, wallet_address, asset, payment_mode,
+       (owner_address, label, seller_id, wallet_address, network, asset, payment_mode,
         resource, source_tag, max_amount, deposit_amount, metered_calls)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      RETURNING *`,
     [
       input.ownerAddress,
       input.label,
       input.sellerId,
       input.walletAddress,
+      input.network,
       input.asset,
       input.paymentMode,
       input.resource,
@@ -711,11 +777,12 @@ export async function getWalletSpend(
 
 export async function getEscrowCreditByTxHash(
   db: Queryable,
+  network: XrplNetwork,
   depositTxHash: string,
 ): Promise<EscrowCreditRow | null> {
   const { rows } = await db.query<EscrowCreditRow>(
-    `SELECT * FROM escrow_credits WHERE deposit_tx_hash = $1`,
-    [depositTxHash],
+    `SELECT * FROM escrow_credits WHERE network = $1 AND deposit_tx_hash = $2`,
+    [network, depositTxHash],
   );
   return rows[0] ?? null;
 }

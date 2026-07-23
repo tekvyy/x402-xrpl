@@ -39,21 +39,22 @@ how pnpm lockfiles work); only the _build_ and _deploy_ are scoped.
 Set these in the Railway service. `${{...}}` values are Railway reference
 variables, typed literally into the UI.
 
-| Variable             | Value                                | Notes                                                                           |
-| -------------------- | ------------------------------------ | ------------------------------------------------------------------------------- |
-| `GATEWAY_PORT`       | `${{PORT}}`                          | Required: the app reads `GATEWAY_PORT`, Railway supplies `PORT`.                |
-| `DATABASE_URL`       | `${{Postgres.DATABASE_URL}}`         |                                                                                 |
-| `REDIS_URL`          | `${{Redis.REDIS_URL}}`               |                                                                                 |
-| `DASHBOARD_ORIGIN`   | `https://<dashboard-domain>`         | CORS. Must exactly match the portal's URL, no trailing slash.                   |
-| `GATEWAY_PUBLIC_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | Used to build absolute URLs.                                                    |
-| `TRUST_PROXY`        | `true`                               | Railway fronts the app; without this every per-IP rate limit keys on the proxy. |
-| `AUTH_SECRET`        | (32+ random chars)                   | Session signing secret.                                                         |
-| `GATEWAY_XRPL_SEED`  | (family seed)                        | Funds settlements. Treat as a secret.                                           |
-| `XRPL_NETWORK`       | `TESTNET` or `MAINNET`               |                                                                                 |
-| `RLUSD_ISSUER`       | issuer address                       | Must match the chosen network.                                                  |
-| `SOURCE_TAG`         | `1080108`                            |                                                                                 |
+| Variable                    | Value                                | Notes                                                                           |
+| --------------------------- | ------------------------------------ | ------------------------------------------------------------------------------- |
+| `GATEWAY_PORT`              | `${{PORT}}`                          | Required: the app reads `GATEWAY_PORT`, Railway supplies `PORT`.                |
+| `DATABASE_URL`              | `${{Postgres.DATABASE_URL}}`         |                                                                                 |
+| `REDIS_URL`                 | `${{Redis.REDIS_URL}}`               |                                                                                 |
+| `DASHBOARD_ORIGIN`          | `https://<dashboard-domain>`         | CORS. Must exactly match the portal's URL, no trailing slash.                   |
+| `GATEWAY_PUBLIC_URL`        | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | Used to build absolute URLs.                                                    |
+| `TRUST_PROXY`               | `true`                               | Railway fronts the app; without this every per-IP rate limit keys on the proxy. |
+| `AUTH_SECRET`               | (32+ random chars)                   | Session signing secret.                                                         |
+| `ENABLED_NETWORKS`          | `TESTNET` or `TESTNET,MAINNET`       | Networks served at once. Each needs its own seed below.                         |
+| `GATEWAY_XRPL_SEED_TESTNET` | (family seed)                        | Funds testnet settlements. Treat as a secret.                                   |
+| `GATEWAY_XRPL_SEED_MAINNET` | (family seed)                        | Only when `MAINNET` is enabled. Real funds — treat as a secret.                 |
+| `SOURCE_TAG`                | `2606150004`                         | Shared across networks.                                                         |
 
-Optional: `XRPL_ENDPOINT`, `ESCROW_ENABLED`, `PLATFORM_FEE_BPS`. See
+Optional: `XRPL_ENDPOINT_<NETWORK>`, `RLUSD_ISSUER_<NETWORK>` (Ripple's issuers
+are built in), `ESCROW_ENABLED`, `PLATFORM_FEE_BPS`. See
 `.env.example` for the full list; `loadEnv` fails fast at boot listing anything
 missing.
 
