@@ -13,6 +13,7 @@ import { registerSellerRoutes } from './routes/sellers.route.js';
 import { registerChannelRoutes } from './routes/channels.route.js';
 import { registerUsageRoutes } from './routes/usage.route.js';
 import { registerFacilitatorRoutes } from './routes/facilitator.route.js';
+import { registerSkillRoutes } from './routes/skill.route.js';
 import { recordRequestAudit } from './services/audit.service.js';
 import type { GatewayDeps } from './deps.js';
 
@@ -55,6 +56,7 @@ export async function buildApp(deps: GatewayDeps): Promise<FastifyInstance> {
   registerChannelRoutes(app, deps);
   registerUsageRoutes(app, deps);
   registerFacilitatorRoutes(app, deps);
+  registerSkillRoutes(app, deps);
 
   return app;
 }

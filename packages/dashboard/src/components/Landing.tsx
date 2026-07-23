@@ -94,6 +94,36 @@ function ServiceRow({ service }: { service: CatalogService }): JSX.Element {
   );
 }
 
+/**
+ * Copies the gateway-served agent skill (markdown) to the clipboard, so a
+ * builder can paste it straight into their agent's context or skill file.
+ */
+function CopySkillButton(): JSX.Element {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  async function copySkill(): Promise<void> {
+    try {
+      const response = await fetch(`${GATEWAY_URL}/skill.md`);
+      if (!response.ok) throw new Error(`gateway responded ${response.status}`);
+      await navigator.clipboard.writeText(await response.text());
+      setState('copied');
+    } catch {
+      setState('failed');
+    }
+    window.setTimeout(() => setState('idle'), 2000);
+  }
+
+  return (
+    <button className="btn btn-primary" type="button" onClick={copySkill}>
+      {state === 'copied'
+        ? 'Copied. Paste into your agent'
+        : state === 'failed'
+          ? 'Copy failed. Use the URL'
+          : 'Copy agent skill (.md)'}
+    </button>
+  );
+}
+
 export function Landing({ onSignIn }: LandingProps): JSX.Element {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +154,8 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
   const agentSnippet = useMemo(
     () =>
       [
+        `$ curl ${GATEWAY_URL}/skill.md`,
+        '# → the full how-to-pay skill for your agent (also at /llms.txt)',
         `$ curl ${GATEWAY_URL}/catalog`,
         '# → this registry as JSON: pick a sellerId, then',
         '',
@@ -275,7 +307,15 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
         <div className="agent-strip card panel">
           <h2>For agents: consume this registry programmatically</h2>
           <pre className="agent-snippet">{agentSnippet}</pre>
+          <div className="hero-actions">
+            <CopySkillButton />
+            <a className="btn" href={`${GATEWAY_URL}/skill.md`} rel="noreferrer" target="_blank">
+              View skill.md
+            </a>
+          </div>
           <p className="agent-note">
+            The skill is a self-contained markdown doc teaching any agent the full pay-per-call and
+            prepaid-credits flow. Paste it into your agent&apos;s context or point it at the URL.
             Full client helpers (channels, claims, trustlines) ship in{' '}
             <code>@xrpl-x402/client</code>; the 402 challenge itself is self-describing, so any HTTP
             client that can sign an XRPL transaction can pay.
