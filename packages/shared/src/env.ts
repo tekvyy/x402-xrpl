@@ -14,7 +14,8 @@ import { isClassicAddress, RLUSD_ISSUERS, XRPL_ENDPOINTS } from './constants.js'
 
 const EnvSchema = z.object({
   // Comma-separated networks this deployment serves, e.g. "TESTNET" or
-  // "TESTNET,MAINNET". Per-network keys below are required for each entry.
+  // "TESTNET,MAINNET". Each entry needs a gateway seed: the shared
+  // GATEWAY_XRPL_SEED, or a per-network GATEWAY_XRPL_SEED_<NETWORK> override.
   ENABLED_NETWORKS: z.string().optional(),
   // Secret used to sign stateless dashboard session (JWT-style HMAC) tokens.
   // Require at least 256 bits when generated as hexadecimal (64 chars) and a
@@ -149,9 +150,15 @@ function parseEnabledNetworks(raw: string | undefined, errors: string[]): XrplNe
 }
 
 /**
- * Resolve per-network XRPL config, collecting errors. Each enabled network
- * needs its own seed; the endpoint and RLUSD issuer fall back to the network's
- * well-known defaults.
+ * Resolve per-network XRPL config, collecting errors.
+ *
+ * The gateway seed for a network is `GATEWAY_XRPL_SEED_<NETWORK>` if set, else
+ * the shared `GATEWAY_XRPL_SEED`. A seed derives the same address on every
+ * network, so one shared seed is enough for a single-network deployment (or for
+ * running several networks off the same wallet, funded on each). The per-network
+ * override only exists for the case where you want a *different* wallet per
+ * network. The endpoint and RLUSD issuer fall back to the network's well-known
+ * defaults.
  */
 function resolveNetworks(
   source: NodeJS.ProcessEnv,
@@ -159,12 +166,14 @@ function resolveNetworks(
   errors: string[],
 ): Partial<Record<XrplNetwork, NetworkConfig>> {
   const networks: Partial<Record<XrplNetwork, NetworkConfig>> = {};
+  const sharedSeed = source.GATEWAY_XRPL_SEED;
 
   for (const network of enabled) {
-    const seed = source[`GATEWAY_XRPL_SEED_${network}`];
+    const seed = source[`GATEWAY_XRPL_SEED_${network}`] || sharedSeed;
     if (seed === undefined || seed.length === 0) {
       errors.push(
-        `  - GATEWAY_XRPL_SEED_${network}: required because ${network} is in ENABLED_NETWORKS`,
+        `  - GATEWAY_XRPL_SEED (or GATEWAY_XRPL_SEED_${network}): ` +
+          `required because ${network} is in ENABLED_NETWORKS`,
       );
       continue;
     }

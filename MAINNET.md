@@ -10,8 +10,10 @@ Deployment lives at `xrplfi.com` (dashboard) and `api.xrplfi.com` (gateway).
 ## How multi-network works
 
 - **`ENABLED_NETWORKS`** lists what the gateway serves (`TESTNET`,
-  `TESTNET,MAINNET`, …). Each entry needs its own `GATEWAY_XRPL_SEED_<NETWORK>`,
-  so a testnet-only deployment never needs mainnet keys or real funds.
+  `TESTNET,MAINNET`, …). Every enabled network uses `GATEWAY_XRPL_SEED` (one seed
+  derives the same address on each ledger); set a per-network
+  `GATEWAY_XRPL_SEED_<NETWORK>` only to use a _different_ wallet on that network.
+  A testnet-only deployment never needs mainnet keys or real funds.
 - **A seller picks its networks** at registration (`networks: ["TESTNET"]`,
   `["TESTNET","MAINNET"]`, …). The 402 `accepts[]` carries one group of entries
   per network, so a caller chooses where to pay.
@@ -28,40 +30,22 @@ Deployment lives at `xrplfi.com` (dashboard) and `api.xrplfi.com` (gateway).
 
 ## Current state
 
-| Service             | Variable            | Value        |
-| ------------------- | ------------------- | ------------ |
-| `x402-xrpl-backend` | `ENABLED_NETWORKS`  | `TESTNET`    |
-| `x402-xrpl-backend` | `SOURCE_TAG`        | `2606150004` |
-| `admin-dashboard`   | `VITE_XRPL_NETWORK` | `TESTNET`    |
+| Service             | Variable            | Value                 |
+| ------------------- | ------------------- | --------------------- |
+| `x402-xrpl-backend` | `ENABLED_NETWORKS`  | `TESTNET`             |
+| `x402-xrpl-backend` | `GATEWAY_XRPL_SEED` | (testnet wallet seed) |
+| `x402-xrpl-backend` | `SOURCE_TAG`        | `2606150004`          |
 
 `XRPL_NETWORK` and `RLUSD_ISSUER` are left over from the single-network config
-and are now ignored (unknown keys are stripped); they can be deleted once the
-new build is deployed. RLUSD issuers are built into
-`packages/shared/src/constants.ts` per network, so `RLUSD_ISSUER_<NETWORK>` only
-exists as an override.
+and are now ignored (unknown keys are stripped); delete them. On
+`admin-dashboard`, `VITE_XRPL_NETWORK` is also dead — the network is a UI toggle
+now. RLUSD issuers are built into `packages/shared/src/constants.ts` per network,
+so `RLUSD_ISSUER_<NETWORK>` only exists as an override.
 
-## 1. Rename the gateway seed (required before the next deploy)
+Nothing needs renaming: the existing `GATEWAY_XRPL_SEED` already boots the
+testnet-only deployment.
 
-The new config wants a seed **per network**. The existing testnet seed is stored
-as `GATEWAY_XRPL_SEED` and must become `GATEWAY_XRPL_SEED_TESTNET`, or the
-gateway will refuse to boot with:
-
-```
-Invalid environment configuration:
-  - GATEWAY_XRPL_SEED_TESTNET: required because TESTNET is in ENABLED_NETWORKS
-```
-
-Copy the value across in the Railway dashboard (Variables → `x402-xrpl-backend`),
-or from a machine that has the seed:
-
-```bash
-railway variables --service x402-xrpl-backend --skip-deploys \
-  --set "GATEWAY_XRPL_SEED_TESTNET=<the existing testnet seed>"
-```
-
-Then deploy. Testnet behaviour is unchanged; nothing else needs to move.
-
-## 2. Add mainnet (optional, costs real XRP)
+## Add mainnet (optional, costs real XRP)
 
 ### Generate and fund wallets
 
@@ -105,7 +89,7 @@ Should list **four** kinds — `exact` and `paychan` on both `xrpl-testnet` and
 `xrpl`. Existing testnet sellers keep working untouched; they simply do not
 advertise mainnet until their `networks` list says so.
 
-## 3. Produce mainnet transactions
+## Produce mainnet transactions
 
 Register a seller on <https://xrplfi.com> (sign in with GemWallet or Crossmark)
 with **Mainnet** ticked in "Networks callers can pay on", payTo set to
@@ -149,7 +133,7 @@ This puts three real transactions on mainnet, each carrying source tag
 The 20 metered calls in between are deliberately **off-ledger** — that is the
 point of the credits path.
 
-## 4. Prove the source tag on chain
+## Prove the source tag on chain
 
 `loadEnv` validates the full env schema, so source `.env` first for the
 unrelated required keys, then `.env.mainnet` for the real seed:

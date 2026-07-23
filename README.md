@@ -184,25 +184,26 @@ gateway seller registration (single source of truth).
 
 Copy `.env.example` to `.env`. Key vars:
 
-| Var                           | Purpose                                                                                                                                                                                   |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ENABLED_NETWORKS`            | Networks served, comma-separated: `TESTNET`, `MAINNET`, or both                                                                                                                           |
-| `GATEWAY_XRPL_SEED_<NETWORK>` | Gateway wallet seed **per enabled network** (e.g. `GATEWAY_XRPL_SEED_TESTNET`)                                                                                                            |
-| `XRPL_ENDPOINT_<NETWORK>`     | Override that network's WebSocket endpoint (optional)                                                                                                                                     |
-| `RLUSD_ISSUER_<NETWORK>`      | Override that network's RLUSD issuer (optional; Ripple's are built in)                                                                                                                    |
-| `AUTH_SECRET`                 | Signs dashboard session tokens (≥ 16 chars)                                                                                                                                               |
-| `SOURCE_TAG`                  | Stamped on every gateway-submitted XRPL tx (shared across networks)                                                                                                                       |
-| `DATABASE_URL`                | Postgres — durable ledger/usage/sellers                                                                                                                                                   |
-| `REDIS_URL`                   | Redis — rate limit, sign-in challenges, live-feed pub/sub                                                                                                                                 |
-| `GATEWAY_PORT`                | Gateway HTTP port (default `8402`)                                                                                                                                                        |
-| `DASHBOARD_ORIGIN`            | Allowed dashboard origin (CORS)                                                                                                                                                           |
-| `ESCROW_ENABLED`              | Custodial escrow-credits fallback (default `false`; the authentic path is PayChan)                                                                                                        |
-| `PLATFORM_FEE_BPS`            | Platform fee in basis points on the PayChan credits path (default `0` = off). When set, channels open to the gateway, which redeems on chain and forwards the seller's cut minus the fee. |
+| Var                       | Purpose                                                                                                                                                                                   |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ENABLED_NETWORKS`        | Networks served, comma-separated: `TESTNET`, `MAINNET`, or both                                                                                                                           |
+| `GATEWAY_XRPL_SEED`       | Gateway wallet seed; covers every enabled network (same address on each). Per-network `GATEWAY_XRPL_SEED_<NETWORK>` overrides only for a different wallet per network                     |
+| `XRPL_ENDPOINT_<NETWORK>` | Override that network's WebSocket endpoint (optional)                                                                                                                                     |
+| `RLUSD_ISSUER_<NETWORK>`  | Override that network's RLUSD issuer (optional; Ripple's are built in)                                                                                                                    |
+| `AUTH_SECRET`             | Signs dashboard session tokens (≥ 16 chars)                                                                                                                                               |
+| `SOURCE_TAG`              | Stamped on every gateway-submitted XRPL tx (shared across networks)                                                                                                                       |
+| `DATABASE_URL`            | Postgres — durable ledger/usage/sellers                                                                                                                                                   |
+| `REDIS_URL`               | Redis — rate limit, sign-in challenges, live-feed pub/sub                                                                                                                                 |
+| `GATEWAY_PORT`            | Gateway HTTP port (default `8402`)                                                                                                                                                        |
+| `DASHBOARD_ORIGIN`        | Allowed dashboard origin (CORS)                                                                                                                                                           |
+| `ESCROW_ENABLED`          | Custodial escrow-credits fallback (default `false`; the authentic path is PayChan)                                                                                                        |
+| `PLATFORM_FEE_BPS`        | Platform fee in basis points on the PayChan credits path (default `0` = off). When set, channels open to the gateway, which redeems on chain and forwards the seller's cut minus the fee. |
 
 ### Mainnet and testnet together
 
 One deployment serves both. `ENABLED_NETWORKS` picks which, each needs its own
-`GATEWAY_XRPL_SEED_<NETWORK>`, and a **seller chooses its own networks** at
+a gateway seed (`GATEWAY_XRPL_SEED`, or per-network overrides), and a **seller
+chooses its own networks** at
 registration — so the 402 `accepts[]` offers a caller one group of entries per
 network. A testnet-only deployment never needs mainnet keys or funds.
 

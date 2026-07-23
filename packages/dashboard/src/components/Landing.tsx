@@ -4,6 +4,7 @@
  * now — with the exact commands to start consuming or selling.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { XrplNetwork } from '@app/shared';
 import { fetchCatalog, type Catalog, type CatalogService } from '../api.js';
 import { GATEWAY_URL } from '../config.js';
 import { trimDecimal } from '../format.js';
@@ -112,6 +113,13 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
   }, []);
 
   const services = catalog?.services ?? [];
+  // Reflect the networks the gateway actually serves rather than a hardcoded
+  // "testnet only" — the deployment may serve testnet, mainnet, or both.
+  const networksLabel = catalog
+    ? catalog.networks
+        .map((network) => (network === XrplNetwork.MAINNET ? 'Mainnet' : 'Testnet'))
+        .join(' + ')
+    : '';
   const agentSnippet = useMemo(
     () =>
       [
@@ -138,7 +146,8 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           <span className="brand-mark">x402</span>
           <div className="brand-text">
             <h1>
-              XRPL x402 Gateway <span className="beta-badge">Beta · Testnet only</span>
+              XRPL x402 Gateway{' '}
+              <span className="beta-badge">Beta{networksLabel ? ` · ${networksLabel}` : ''}</span>
             </h1>
             <p>Monetize APIs · run paying agents</p>
           </div>
@@ -276,8 +285,8 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           facilitator <code>{GATEWAY_URL}</code>
         </span>
         <span>
-          x402 on the XRP Ledger · every settlement source-tagged on chain · Beta, XRPL Testnet only
-          for now
+          x402 on the XRP Ledger · every settlement source-tagged on chain · Beta
+          {networksLabel ? ` · ${networksLabel}` : ''}
         </span>
       </footer>
     </div>
