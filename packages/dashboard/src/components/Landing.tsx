@@ -314,8 +314,9 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
             </a>
           </div>
           <p className="agent-note">
-            The skill is a self-contained markdown doc teaching any agent the full pay-per-call and
-            prepaid-credits flow. Paste it into your agent&apos;s context or point it at the URL.
+            The skill is a self-contained markdown doc teaching any agent XRPL wallet management
+            (safe key handling, signing, submission) plus the full pay-per-call and prepaid-credits
+            flow. Paste it into your agent&apos;s context or point it at the URL.
             Full client helpers (channels, claims, trustlines) ship in{' '}
             <code>@xrpl-x402/client</code>; the 402 challenge itself is self-describing, so any HTTP
             client that can sign an XRPL transaction can pay.
