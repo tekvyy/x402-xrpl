@@ -13,7 +13,6 @@
     "format": "prettier --write .",
     "migrate:up": "node-pg-migrate up -m migrations -j sql",
     "migrate:down": "node-pg-migrate down -m migrations -j sql",
-    "demo": "node scripts/demo.mjs",
     "audit:source-tag": "pnpm --filter @app/gateway audit:source-tag"
   },
   "devDependencies": {

@@ -94,6 +94,7 @@ function renderBotEnv(deps: GatewayDeps, bot: BotRow, seller: SellerRow): string
     `# Bot: ${stripControl(bot.label)}  (buys from: ${stripControl(seller.name)})`,
     '# Fill in AGENT_SEED with your own funded XRPL wallet seed. It is never',
     '# uploaded to the gateway — the bot signs and pays locally.',
+    `# Point your agent at ${deps.publicBaseUrl}/skill.md for the wire protocol.`,
     '',
     `XRPL_NETWORK=${bot.network}`,
     `GATEWAY_URL=${deps.publicBaseUrl}`,
@@ -181,7 +182,7 @@ export function registerBotRoutes(app: FastifyInstance, deps: GatewayDeps): void
       if (!seller) return reply.code(404).send({ error: 'seller not found' });
       return reply.send({
         env: renderBotEnv(deps, bot, seller),
-        runCommand: 'pnpm --filter @app/agent-demo start',
+        skillUrl: `${deps.publicBaseUrl}/skill.md`,
       });
     },
   );

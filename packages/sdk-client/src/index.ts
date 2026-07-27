@@ -1,7 +1,7 @@
 /**
  * Client SDK public surface: wallet loading, RLUSD trustline management,
- * pay-per-call payment building, and the `x402fetch` 402→pay→retry loop.
- * PayChan credit helpers arrive in US-004.
+ * pay-per-call payment building, PayChan prepaid-credit helpers, and the
+ * `x402fetch` 402→pay→retry loop.
  */
 import { X402Header } from '@app/shared';
 

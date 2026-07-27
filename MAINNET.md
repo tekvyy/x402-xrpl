@@ -90,45 +90,26 @@ advertise mainnet until their `networks` list says so.
 
 Register a seller on <https://xrplfi.com> (sign in with GemWallet or Crossmark)
 with **Mainnet** ticked in "Networks callers can pay on", payTo set to
-`SELLER_ADDRESS` from `.env.mainnet`, price `0.01` XRP, asset `XRP`, setup
-`Both`, origin `http://localhost:8403`.
+`SELLER_ADDRESS` from `.env.mainnet`, price `0.01` XRP, asset `XRP`, and setup
+`Both`.
 
-The origin URL is only ever fetched by the paying agent, not by the gateway
-(`resourceBase = seller.originUrl` in `packages/agent-demo/src/agent.ts`), so a
-local origin still settles on mainnet.
+The origin URL is only ever fetched by the paying client, never by the gateway,
+so a seller API running on `localhost` still settles on mainnet. Put
+`@xrpl-x402/server` in front of a route (see the README) and point a client at
+it with `x402fetch`, configured for `XrplNetwork.MAINNET` and funded from
+`AGENT_SEED` in `.env.mainnet`.
 
-Terminal 1 — the seller's API:
+A client that opens a channel, makes metered calls, and then makes one
+pay-per-call request puts three real transactions on mainnet, each carrying the
+configured source tag:
 
-```bash
-pnpm build
-GATEWAY_URL=https://api.xrplfi.com SELLER_ID=<seller-id> DEMO_ORIGIN_PORT=8403 \
-  pnpm --filter @app/demo-origin start
-```
-
-Terminal 2 — the paying agent:
-
-```bash
-set -a && . ./.env.mainnet && set +a
-GATEWAY_URL=https://api.xrplfi.com \
-SELLER_ID=<seller-id> \
-SOURCE_TAG=2606150004 \
-XRPL_NETWORK=MAINNET \
-RESOURCE=data CHANNEL_DEPOSIT_XRP=1 METERED_CALLS=20 \
-  pnpm --filter @app/agent-demo start
-```
-
-`XRPL_NETWORK` here is the **agent's** own setting — a client pays on one
-network per run. It says nothing about what the gateway serves (always both).
-
-This puts three real transactions on mainnet, each carrying source tag
-2606150004:
-
-1. `PaymentChannelCreate` — the agent opens a 1 XRP prepaid channel
-2. `Payment` — one pay-per-call settlement (prints its explorer URL)
+1. `PaymentChannelCreate` — the client opens a prepaid channel
+2. `Payment` — one pay-per-call settlement
 3. `PaymentChannelClaim` — the gateway redeems the channel on chain
 
-The 20 metered calls in between are deliberately **off-ledger** — that is the
-point of the credits path.
+The metered calls in between are deliberately **off-ledger**; that is the point
+of the credits path. The network a client pays on is the client's own setting
+and says nothing about what the gateway serves (always both).
 
 ## Prove the source tag on chain
 

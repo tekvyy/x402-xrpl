@@ -33,25 +33,6 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
-  packages/agent-demo:
-    dependencies:
-      '@app/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@xrpl-x402/client':
-        specifier: workspace:*
-        version: link:../sdk-client
-      xrpl:
-        specifier: ^4.1.0
-        version: 4.6.0
-      zod:
-        specifier: ^3.24.1
-        version: 3.25.76
-    devDependencies:
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
   packages/dashboard:
     dependencies:
       '@app/shared':
@@ -88,22 +69,6 @@ importers:
       vite-plugin-node-polyfills:
         specifier: ^0.22.0
         version: 0.22.0(rollup@4.62.2)(vite@6.4.3(@types/node@22.20.0))
-
-  packages/demo-origin:
-    dependencies:
-      '@app/shared':
-        specifier: workspace:*
-        version: link:../shared
-      '@xrpl-x402/server':
-        specifier: workspace:*
-        version: link:../sdk-server
-      fastify:
-        specifier: ^5.2.0
-        version: 5.9.0
-    devDependencies:
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
 
   packages/gateway:
     dependencies:

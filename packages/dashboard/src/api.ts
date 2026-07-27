@@ -341,7 +341,7 @@ export function fetchBot(token: string, id: string): Promise<BotWithUsage> {
 export function fetchBotConfig(
   token: string,
   id: string,
-): Promise<{ env: string; runCommand: string }> {
+): Promise<{ env: string; skillUrl: string }> {
   return authed(`/bots/${encodeURIComponent(id)}/config`, token);
 }
 

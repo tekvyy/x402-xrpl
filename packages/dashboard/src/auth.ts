@@ -61,10 +61,10 @@ export function saveSession(token: string): Session | null {
 }
 
 /**
- * Consume a session token handed over in the URL fragment (`#token=…`), as
- * printed by the demo orchestrator for its faucet-funded throwaway seller
- * wallet (which no browser extension holds). The fragment never reaches the
- * server; it is stripped from the address bar immediately after being read.
+ * Consume a session token handed over in the URL fragment (`#token=…`), which
+ * is how a headless caller signs in a wallet no browser extension holds (see
+ * `signIn` in `@xrpl-x402/client`). The fragment never reaches the server; it
+ * is stripped from the address bar immediately after being read.
  */
 export function consumeUrlToken(): Session | null {
   const token = /[#&]token=([^&]+)/.exec(window.location.hash)?.[1];

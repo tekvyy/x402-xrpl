@@ -1,6 +1,6 @@
 /**
  * One saved bot: its config summary, on-chain spend, and self-custody actions —
- * download a runnable `.env`, copy the run command, or delete it.
+ * download a runnable `.env`, copy the agent skill URL, or delete it.
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -60,12 +60,15 @@ export function BotCard({ token, bot, onDeleted, onUnauthorized }: BotCardProps)
     }
   }
 
-  async function copyRun(): Promise<void> {
+  async function copySkillUrl(): Promise<void> {
+    setError(null);
     try {
-      await navigator.clipboard.writeText('pnpm --filter @app/agent-demo start');
+      const config = await fetchBotConfig(token, bot.id);
+      await navigator.clipboard.writeText(config.skillUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
-    } catch {
+    } catch (err) {
+      if (err instanceof UnauthorizedError) return handleUnauthorized();
       setError('Clipboard unavailable');
     }
   }
@@ -128,8 +131,8 @@ export function BotCard({ token, bot, onDeleted, onUnauthorized }: BotCardProps)
         <button className="btn" type="button" onClick={download}>
           Download .env
         </button>
-        <button className="btn" type="button" onClick={copyRun}>
-          {copied ? 'Copied!' : 'Copy run cmd'}
+        <button className="btn" type="button" onClick={copySkillUrl}>
+          {copied ? 'Copied!' : 'Copy agent guide'}
         </button>
         <button className="btn btn-danger" type="button" onClick={remove} disabled={busy}>
           Delete

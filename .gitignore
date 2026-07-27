@@ -5,3 +5,5 @@ dist
 .env.local
 .env.mainnet
 .DS_Store
+
+.claude

@@ -1,6 +1,6 @@
 # Deploying the portal + backend to Railway
 
-Only two of the eight workspace packages are deployed:
+Only two of the five workspace packages are deployed:
 
 | Railway service | Package              | What it is                       | Config file              |
 | --------------- | -------------------- | -------------------------------- | ------------------------ |
@@ -8,8 +8,8 @@ Only two of the eight workspace packages are deployed:
 | `dashboard`     | `packages/dashboard` | Static Vite SPA (the portal)     | `railway.dashboard.json` |
 
 `packages/shared` is not a service; it is a library both builds pull in
-automatically via pnpm's `...` filter. `agent-demo`, `demo-origin`, `sdk-client`
-and `sdk-server` are never built or deployed.
+automatically via pnpm's `...` filter. `sdk-client` and `sdk-server` are
+consumed by callers and sellers, never built or deployed here.
 
 Both services also need Railway's **Postgres** and **Redis** plugins.
 
