@@ -6,4 +6,7 @@ dist
 .env.mainnet
 .DS_Store
 
+# Can hold an npm publish token (//registry.npmjs.org/:_authToken=...).
+.npmrc
+
 .claude
