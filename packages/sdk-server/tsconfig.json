@@ -2,7 +2,18 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    // No `rootDir`: tsup emits the JS, so tsc runs only as `--noEmit`, and the
+    // `paths` mapping below deliberately reaches outside src/ (which rootDir
+    // would reject with TS6059).
+    //
+    // Map the shared protocol entry to its SOURCE, not the built package. The
+    // published artifact bundles this code in (see tsup.config.ts), and the
+    // .d.ts bundler only inlines modules it can see as local source: left to
+    // resolve through node_modules it emits an unresolvable
+    // `from '@app/shared/sdk'` in the declarations.
+    "paths": {
+      "@app/shared/sdk": ["../shared/src/sdk.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

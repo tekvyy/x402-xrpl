@@ -6,7 +6,7 @@
  */
 import { Wallet } from 'xrpl';
 import { sign } from 'ripple-keypairs';
-import type { AuthChallengeResponse, AuthVerifyResponse } from '@app/shared';
+import type { AuthChallengeResponse, AuthVerifyResponse } from '@app/shared/sdk';
 
 /** Minimal `fetch` surface, so callers can inject a custom implementation. */
 export type FetchLike = (

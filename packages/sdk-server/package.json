@@ -1,16 +1,53 @@
 {
   "name": "@xrpl-x402/server",
   "version": "0.1.0",
-  "private": true,
+  "description": "x402 payment middleware for Express and Fastify: meter any HTTP route in XRP or RLUSD on the XRP Ledger.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tekvyy/x402-xrpl.git",
+    "directory": "packages/sdk-server"
+  },
+  "homepage": "https://github.com/tekvyy/x402-xrpl#metering-an-api-sellers",
+  "bugs": "https://github.com/tekvyy/x402-xrpl/issues",
+  "keywords": [
+    "x402",
+    "xrpl",
+    "xrp",
+    "rlusd",
+    "micropayments",
+    "express",
+    "fastify",
+    "middleware",
+    "ai-agents"
+  ],
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@app/shared": "workspace:*"
+    "zod": "^3.24.1"
   },
   "peerDependencies": {
     "express": "^4.0.0 || ^5.0.0",
@@ -25,9 +62,11 @@
     }
   },
   "devDependencies": {
+    "@app/shared": "workspace:*",
     "@types/express": "^5.0.0",
     "express": "^5.0.1",
     "fastify": "^5.2.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.7.2"
   }
 }

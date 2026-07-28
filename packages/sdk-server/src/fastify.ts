@@ -13,7 +13,7 @@
  * runs; otherwise it answers 402/400 itself and the handler is skipped.
  */
 import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastify';
-import { X402Header } from '@app/shared';
+import { X402Header } from '@app/shared/sdk';
 import { decide, PAYMENT_RESPONSE_HEADER } from './core.js';
 import type { X402MiddlewareOptions } from './types.js';
 

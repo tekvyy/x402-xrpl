@@ -3,7 +3,7 @@
  * transmits the seed — it only signs locally before submitting transactions.
  */
 import { Client, Wallet } from 'xrpl';
-import { XrplNetwork, XRPL_ENDPOINTS } from '@app/shared';
+import { XrplNetwork, XRPL_ENDPOINTS } from '@app/shared/sdk';
 
 /** Derive a signing wallet from a family seed (e.g. `sEd...`). */
 export function loadWallet(seed: string): Wallet {

@@ -23,8 +23,8 @@ import {
   X402_VERSION,
   decodeHeaderPayload,
   encodeHeaderPayload,
-} from '@app/shared';
-import type { PaymentPayload, PaymentRequirements, SettlementResponse } from '@app/shared';
+} from '@app/shared/sdk';
+import type { PaymentPayload, PaymentRequirements, SettlementResponse } from '@app/shared/sdk';
 import { decimalGte } from './decimal.js';
 import { ensureTrustline } from './trustline.js';
 import { payChallenge } from './payment.js';

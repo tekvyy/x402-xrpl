@@ -1,20 +1,59 @@
 {
   "name": "@xrpl-x402/client",
   "version": "0.1.0",
-  "private": true,
+  "description": "x402 payment client for the XRP Ledger: x402fetch pays 402-gated APIs in XRP or RLUSD, plus payment-channel prepaid credits.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tekvyy/x402-xrpl.git",
+    "directory": "packages/sdk-client"
+  },
+  "homepage": "https://github.com/tekvyy/x402-xrpl#paying-for-an-api-clients-and-agents",
+  "bugs": "https://github.com/tekvyy/x402-xrpl/issues",
+  "keywords": [
+    "x402",
+    "xrpl",
+    "xrp",
+    "rlusd",
+    "micropayments",
+    "payment-channel",
+    "paychan",
+    "fetch",
+    "ai-agents"
+  ],
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@app/shared": "workspace:*",
     "ripple-keypairs": "^2.0.0",
-    "xrpl": "^4.1.0"
+    "xrpl": "^4.1.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@app/shared": "workspace:*",
+    "tsup": "^8.5.1",
     "typescript": "^5.7.2"
   }
 }

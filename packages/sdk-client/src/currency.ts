@@ -4,7 +4,7 @@
  * bytes, right-padded with zeros. Mirrors the gateway's encoding so client
  * payments and gateway verification agree on the RLUSD currency.
  */
-import { RLUSD_CURRENCY_CODE } from '@app/shared';
+import { RLUSD_CURRENCY_CODE } from '@app/shared/sdk';
 
 /** Encode an ASCII currency code into its XRPL on-ledger representation. */
 export function currencyToHex(code: string): string {

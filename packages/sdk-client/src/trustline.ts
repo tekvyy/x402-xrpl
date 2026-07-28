@@ -6,7 +6,7 @@
  */
 import { Client, Wallet } from 'xrpl';
 import type { TrustSet } from 'xrpl';
-import { RLUSD_CURRENCY_CODE } from '@app/shared';
+import { RLUSD_CURRENCY_CODE } from '@app/shared/sdk';
 import { currencyToHex } from './currency.js';
 import { ensureConnected } from './wallet.js';
 

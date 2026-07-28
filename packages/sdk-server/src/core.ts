@@ -23,13 +23,13 @@ import {
   X402_VERSION,
   parsePaymentHeader,
   encodeHeaderPayload,
-} from '@app/shared';
+} from '@app/shared/sdk';
 import type {
   PaymentPayload,
   PaymentRequirements,
   PaymentRequirementsResponse,
   SettlementResponse,
-} from '@app/shared';
+} from '@app/shared/sdk';
 import type { X402MiddlewareOptions } from './types.js';
 
 /** A framework-agnostic instruction for the adapter to carry out. */

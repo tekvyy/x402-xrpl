@@ -1,9 +1,16 @@
 # @xrpl-x402/server
 
-x402 **middleware** for sellers who prefer code over the drop-in proxy. Price
-any Express or Fastify route per call in RLUSD or XRP; the middleware delegates
-every verify/settle decision to the gateway facilitator, so there is no
-duplicated x402 protocol logic.
+x402 **middleware** for sellers. Price any Express or Fastify route per call in
+XRP or RLUSD on the XRP Ledger. The middleware delegates every verify/settle
+decision to the gateway facilitator, so it holds no XRPL code and no duplicated
+x402 protocol logic.
+
+```bash
+npm i @xrpl-x402/server
+```
+
+Requires Node ≥ 20. `express` and `fastify` are optional peer dependencies:
+install only the one you use.
 
 ## How it works
 
@@ -71,7 +78,9 @@ app.get('/premium', { preHandler: pay }, async () => ({ secret: 42 }));
 await app.listen({ port: 3000 });
 ```
 
-Clients pay transparently with `x402fetch` from `@xrpl-x402/client`.
+Clients pay transparently with `x402fetch` from
+[`@xrpl-x402/client`](https://www.npmjs.com/package/@xrpl-x402/client).
 
-> `express` and `fastify` are optional peer dependencies — install only the one
-> you use.
+## License
+
+MIT. Source: [tekvyy/x402-xrpl](https://github.com/tekvyy/x402-xrpl).

@@ -3,7 +3,7 @@
  * pay-per-call payment building, PayChan prepaid-credit helpers, and the
  * `x402fetch` 402→pay→retry loop.
  */
-import { X402Header } from '@app/shared';
+import { X402Header } from '@app/shared/sdk';
 
 export { loadWallet, createClient, ensureConnected } from './wallet.js';
 export { ensureTrustline, DEFAULT_RLUSD_TRUST_LIMIT } from './trustline.js';

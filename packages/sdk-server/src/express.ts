@@ -13,7 +13,7 @@
  *   );
  */
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import { X402Header } from '@app/shared';
+import { X402Header } from '@app/shared/sdk';
 import { decide, PAYMENT_RESPONSE_HEADER } from './core.js';
 import type { X402MiddlewareOptions } from './types.js';
 
