@@ -239,7 +239,7 @@ console.log(await res.json(), readSettlement(res)?.transaction);
 const channel = await openChannel({
   client,
   wallet,
-  destination: '<channelDestination from GET /catalog>',
+  destination: '<channelDestinations[network] from GET /catalog>',
   deposit: '1',
   sourceTag: 0,
 });
@@ -281,7 +281,7 @@ protection is anchored in the gateway's single-use nonce ledger). Spec clients
 never call it and only ever see spec-shaped messages.
 
 Two more endpoints round out the surface: `GET /catalog`, the public service
-registry (name, price, modes, `channelDestination`) so agents can discover what
+registry (name, price, modes, `channelDestinations`) so agents can discover what
 is payable, and `GET /skill.md`, the agent protocol guide (aliased at
 `/llms.txt`).
 

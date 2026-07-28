@@ -242,10 +242,23 @@ non-402 response. The gateway redeems the accumulated total on chain later.
 
 ## TypeScript shortcut
 
-The reference SDK wraps all of the above in one call. The repo ships
-\`@xrpl-x402/client\` with \`x402fetch(url, { x402: { wallet, client,
-sourceTag, maxAmount, channel? } })\` handling 402 → pay → retry
-transparently: https://github.com/tekvyy/x402-xrpl
+Everything above is the raw wire protocol, so any HTTP client that can sign an
+XRPL transaction can pay. If you are on Node, the reference SDK collapses it
+into one call:
+
+\`\`\`
+npm i @xrpl-x402/client
+\`\`\`
+
+\`x402fetch(url, { x402: { wallet, client, sourceTag, maxAmount, channel? } })\`
+handles 402 → pay → retry transparently, and \`openChannel\` / \`signClaim\`
+cover §3. Pass a \`channel\` and it spends prepaid credits; omit it and it pays
+per call.
+
+Sellers metering their own API want \`npm i @xrpl-x402/server\` instead.
+
+- https://www.npmjs.com/package/@xrpl-x402/client
+- https://github.com/tekvyy/x402-xrpl
 `;
 }
 
