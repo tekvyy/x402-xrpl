@@ -18,9 +18,29 @@ import { recordRequestAudit } from './services/audit.service.js';
 import type { GatewayDeps } from './deps.js';
 
 export async function buildApp(deps: GatewayDeps): Promise<FastifyInstance> {
-  // trustProxy: honor X-Forwarded-For only when explicitly configured, so
-  // per-IP rate limits key on the real client behind a trusted reverse proxy.
-  const app = Fastify({ logger: true, trustProxy: deps.env.trustProxy });
+  const app = Fastify({
+    logger: {
+      // Log the path without its query string. `GET /usage/stream` carries the
+      // session token in the query (EventSource cannot set an Authorization
+      // header), and Fastify's default serializer would write that bearer token
+      // into stdout — and from there into whatever aggregates the logs. The
+      // audit table strips the query for the same reason; this closes the other
+      // half. Nothing downstream needs query values to correlate a request.
+      serializers: {
+        req: (request) => ({
+          method: request.method,
+          url: request.url.split('?')[0],
+          hostname: request.hostname,
+          remoteAddress: request.ip,
+        }),
+      },
+    },
+    // A hop count, never `true`: trusting the entire X-Forwarded-For chain
+    // would make `request.ip` the caller's own first entry, letting anyone
+    // rotate the header to sidestep every per-IP rate limit. Trust only the
+    // addresses the configured proxies actually appended.
+    trustProxy: deps.env.trustProxyHops,
+  });
 
   await app.register(cors, { origin: deps.env.dashboardOrigin });
 

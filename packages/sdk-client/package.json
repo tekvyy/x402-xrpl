@@ -1,6 +1,6 @@
 {
   "name": "@xrpl-x402/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "x402 payment client for the XRP Ledger: x402fetch pays 402-gated APIs in XRP or RLUSD, plus payment-channel prepaid credits.",
   "license": "MIT",
   "repository": {

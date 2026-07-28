@@ -1,6 +1,6 @@
 {
   "name": "@xrpl-x402/server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "x402 payment middleware for Express and Fastify: meter any HTTP route in XRP or RLUSD on the XRP Ledger.",
   "license": "MIT",
   "repository": {

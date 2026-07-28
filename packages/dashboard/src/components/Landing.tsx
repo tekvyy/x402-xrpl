@@ -4,7 +4,7 @@
  * now — with the exact commands to start consuming or selling.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { XrplNetwork } from '@app/shared';
+import { XrplNetwork, safeHref } from '@app/shared';
 import { fetchCatalog, type Catalog, type CatalogService } from '../api.js';
 import { GATEWAY_URL, REPO_URL } from '../config.js';
 import { trimDecimal } from '../format.js';
@@ -69,6 +69,24 @@ function setupLabel(mode: CatalogService['paymentMode']): string[] {
   return [mode];
 }
 
+/**
+ * A seller's origin, linked only when it is a real http(s) URL. Sellers supply
+ * this string, so it is never trusted straight into an `href`: a `javascript:`
+ * origin would otherwise run in every catalog visitor's session. Registration
+ * rejects those schemes now, but rows written before it did are still served,
+ * so the link defends itself and shows the raw text when it cannot.
+ */
+function ServiceOrigin({ originUrl }: { originUrl: string }): JSX.Element {
+  const href = safeHref(originUrl);
+  const label = originUrl.replace(/^https?:\/\//, '');
+  if (!href) return <span className="svc-origin">{label}</span>;
+  return (
+    <a className="svc-origin" href={href} rel="noreferrer" target="_blank">
+      {label}
+    </a>
+  );
+}
+
 /** One registry row: identity, price, modes, and the ids an agent needs. */
 function ServiceRow({ service }: { service: CatalogService }): JSX.Element {
   const [copied, setCopied] = useState(false);
@@ -87,9 +105,7 @@ function ServiceRow({ service }: { service: CatalogService }): JSX.Element {
     <li className="svc-row">
       <div className="svc-id">
         <span className="svc-name">{service.name}</span>
-        <a className="svc-origin" href={service.originUrl} rel="noreferrer" target="_blank">
-          {service.originUrl.replace(/^https?:\/\//, '')}
-        </a>
+        <ServiceOrigin originUrl={service.originUrl} />
       </div>
       <div className="svc-price">
         <span className="svc-price-amount">{trimDecimal(service.priceAmount)}</span>
@@ -276,16 +292,13 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
             <li>Sign in with your XRPL wallet. A signed challenge, no fees, no seed.</li>
             <li>Register the API: name, price per call, payout address, payment setup.</li>
             <li>
-              Get the middleware:{' '}
+              Install the middleware:
+              <code className="lane-code">npm i @xrpl-x402/server</code>
+              MIT licensed and{' '}
               <a className="foot-link" href={REPO_URL} rel="noreferrer" target="_blank">
-                <code>@xrpl-x402/server</code>, open source on GitHub
+                open source on GitHub
               </a>
-              . No npm release yet, so clone it and build:
-              <code className="lane-code">
-                git clone {REPO_URL}.git
-                <br />
-                cd x402-xrpl &amp;&amp; pnpm i &amp;&amp; pnpm build
-              </code>
+              .
             </li>
             <li>
               Add it to your own routes. It is pure delegation: no XRPL code, no pricing, just two

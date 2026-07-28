@@ -107,3 +107,35 @@ export const XRPL_CLASSIC_ADDRESS_PATTERN = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 export function isClassicAddress(value: string): boolean {
   return XRPL_CLASSIC_ADDRESS_PATTERN.test(value);
 }
+
+/** The only URL schemes a seller-supplied address may use. */
+const SAFE_URL_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:']);
+
+/**
+ * Whether `value` is a fetchable http(s) URL.
+ *
+ * Plain URL parsing (zod's `.url()`, `new URL()`) happily accepts
+ * `javascript:`, `data:`, and `vbscript:`, so anything user-supplied that ends
+ * up in an `href` — a seller's `originUrl` is rendered as a link on the public
+ * catalog — must be scheme-checked as well as shape-checked, or registering a
+ * seller becomes a stored-XSS primitive.
+ */
+export function isHttpUrl(value: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  return SAFE_URL_PROTOCOLS.has(parsed.protocol);
+}
+
+/**
+ * `value` when it is a safe http(s) URL, else `undefined` — for use directly in
+ * an `href`. The render-time half of {@link isHttpUrl}: rows written before the
+ * scheme check existed are still in the database, so links defend themselves
+ * rather than trusting the API.
+ */
+export function safeHref(value: string | null | undefined): string | undefined {
+  return typeof value === 'string' && isHttpUrl(value) ? value : undefined;
+}

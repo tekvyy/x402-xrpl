@@ -19,7 +19,9 @@ learn to pay by fetching one document from the gateway it is paying.
 Live deployment: [xrplfi.com](https://xrplfi.com) (dashboard),
 `api.xrplfi.com` (facilitator).
 
-> **Status:** v0.1. The packages are not published to npm yet. Testnet and
+> **Status:** v0.1.1, both SDKs published on npm
+> ([server](https://www.npmjs.com/package/@xrpl-x402/server) ·
+> [client](https://www.npmjs.com/package/@xrpl-x402/client)). Testnet and
 > mainnet are both served; treat mainnet use as early software and start small.
 
 ## Contents
@@ -187,14 +189,9 @@ networks), then put the middleware in front of the routes you want to charge for
 Pricing is deliberately **not** repeated in middleware config: the gateway
 registration is the single source of truth.
 
-**Getting the middleware.** There is no npm release yet, so clone this repo and
-build (`pnpm i && pnpm build`), then work inside the workspace. Note that
-`npm i github:tekvyy/x402-xrpl` does _not_ work: npm cannot install a
-subdirectory of a git repo, and `@xrpl-x402/server` declares
-`"@app/shared": "workspace:*"`, which fails outside the workspace with
-`EUNSUPPORTEDPROTOCOL`. If you only want the metering behavior, the adapter is
-small and has no XRPL code in it: `core.ts` (213 lines) plus a ~40-line Express
-or Fastify adapter, all of it just two HTTP calls to the facilitator.
+```bash
+npm i @xrpl-x402/server
+```
 
 ```ts
 import express from 'express';
@@ -219,6 +216,10 @@ ones reach your handler with an `X-PAYMENT-RESPONSE` header attached.
 ## Paying for an API (clients and agents)
 
 `x402fetch` is a drop-in `fetch` that handles the 402, pays it, and retries:
+
+```bash
+npm i @xrpl-x402/client
+```
 
 ```ts
 import { Client, Wallet } from 'xrpl';

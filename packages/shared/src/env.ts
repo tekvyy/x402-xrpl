@@ -33,13 +33,21 @@ const EnvSchema = z.object({
   // credits path. Prepaid channels always pay the gateway, which redeems on
   // chain and forwards the seller's cut minus this fee. Max 10000 (100%).
   PLATFORM_FEE_BPS: z.coerce.number().int().min(0).max(10_000).optional(),
-  // Optional: honor X-Forwarded-For from a fronting reverse proxy so per-IP
-  // rate limits key on the real client, not the proxy. Only enable when the
-  // gateway is actually behind a trusted proxy.
+  // Optional: how many trusted reverse proxies sit in front of the gateway, so
+  // per-IP rate limits key on the real client rather than the proxy. This is a
+  // HOP COUNT, not a flag: trusting the whole chain would let a caller prepend
+  // its own X-Forwarded-For entry and have that value believed, rotating the
+  // header to bypass every per-IP limit. Only the addresses appended by the N
+  // proxies nearest the gateway are trustworthy, so only those are trusted.
+  // `false`/`0` = no proxy (use the socket address); `true` = exactly one.
   TRUST_PROXY: z
-    .enum(['true', 'false', '1', '0'])
+    .union([z.enum(['true', 'false']), z.coerce.number().int().min(0).max(10)])
     .optional()
-    .transform((value) => value === 'true' || value === '1'),
+    .transform((value) => {
+      if (value === undefined || value === 'false') return 0;
+      if (value === 'true') return 1;
+      return value;
+    }),
   // Optional: comma-separated XRPL classic addresses granted admin access
   // (audit-log endpoints). Admins sign in through the normal wallet auth flow;
   // membership in this list is what elevates the session. Empty = no admins.
@@ -91,8 +99,12 @@ export interface AppEnv {
   escrowEnabled: boolean;
   /** Platform fee in basis points taken on the PayChan credits path (0 = off). */
   platformFeeBps: number;
-  /** Whether to trust X-Forwarded-For from a fronting reverse proxy. */
-  trustProxy: boolean;
+  /**
+   * How many trusted reverse-proxy hops sit in front of the gateway; 0 when it
+   * is directly exposed. Feeds Fastify's `trustProxy` so `request.ip` is the
+   * last address the trusted chain appended, never one the caller supplied.
+   */
+  trustProxyHops: number;
   /** XRPL addresses whose sessions get admin access (audit log); empty = none. */
   adminAddresses: string[];
 }
@@ -190,7 +202,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     dashboardOrigin: data.DASHBOARD_ORIGIN,
     escrowEnabled: data.ESCROW_ENABLED ?? false,
     platformFeeBps: data.PLATFORM_FEE_BPS ?? 0,
-    trustProxy: data.TRUST_PROXY ?? false,
+    trustProxyHops: data.TRUST_PROXY ?? 0,
     adminAddresses: data.ADMIN_ADDRESSES,
   };
 }

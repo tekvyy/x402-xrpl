@@ -9,4 +9,8 @@ dist
 # Can hold an npm publish token (//registry.npmjs.org/:_authToken=...).
 .npmrc
 
+# pnpm copies the root LICENSE into each package at pack time; the root file is
+# the only source of truth, so the copies are build artifacts.
+packages/*/LICENSE
+
 .claude

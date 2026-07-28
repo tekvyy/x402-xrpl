@@ -14,19 +14,28 @@ install only the one you use.
 
 ## How it works
 
-```
-client ──GET /premium──────────────► your server (x402 middleware)
-                                          │  no X-PAYMENT
-       ◄──402 { accepts:[…] }────────────┤  POST gateway /challenge
-client pays (X-PAYMENT header)            │
-       ──GET /premium + X-PAYMENT───────► │  POST gateway /settle
-                                          │  SETTLED → next()
-       ◄──200 + X-PAYMENT-RESPONSE───────┘  route handler runs
+```text
+ client                      your server                     gateway
+                          (x402 middleware)               (facilitator)
+  |                               |                             |
+  |-------- GET /premium --------->                             |
+  |                               |------ POST /challenge ------>
+  <------- 402 + accepts[] -------|                             |
+  |                               |                             |
+  |-- GET /premium + X-PAYMENT --->                             |
+  |                               |------- POST /settle -------->
+  |                               <---------- SETTLED ----------|
+  <-- 200 + X-PAYMENT-RESPONSE ---|                             |
 ```
 
+An unpaid request gets a `402` carrying the payment requirements. Once the
+client retries with an `X-PAYMENT` header and the facilitator returns `SETTLED`,
+your route handler runs normally and the response carries
+`X-PAYMENT-RESPONSE`.
+
 Pricing (amount, asset, payTo, mode) lives in the seller's **gateway
-registration** — the single source of truth — not in the middleware config.
-The middleware only needs the facilitator URL and the registered `sellerId`.
+registration**, the single source of truth, not in the middleware config. The
+middleware only needs the facilitator URL and the registered `sellerId`.
 
 ## Register the seller once
 

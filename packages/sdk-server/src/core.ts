@@ -52,9 +52,32 @@ export type X402Decision =
  */
 const issuedChallenges = new Map<string, { accepts: PaymentRequirements[]; expiresAtMs: number }>();
 
+/**
+ * Hard ceiling on remembered challenges. Every unpaid request to a metered
+ * route mints one and holds it for the challenge TTL, so without a cap an
+ * unauthenticated flood grows this map until the seller's process runs out of
+ * memory — expiry alone does not bound it, since the bound would be
+ * (request rate × TTL). Well above any honest concurrent-payer count: a seller
+ * fielding 10k payers inside one 5-minute window is not the case being
+ * defended against.
+ */
+const MAX_ISSUED_CHALLENGES = 10_000;
+
 function pruneExpiredChallenges(nowMs: number): void {
   for (const [nonce, entry] of issuedChallenges) {
     if (entry.expiresAtMs <= nowMs) issuedChallenges.delete(nonce);
+  }
+}
+
+/**
+ * Drop the oldest entries until the map is back under its cap. Map iterates in
+ * insertion order and challenges are inserted as they are issued, so the front
+ * of the map is the closest to expiring — the least likely to still be paid.
+ */
+function evictOldestChallenges(): void {
+  for (const nonce of issuedChallenges.keys()) {
+    if (issuedChallenges.size < MAX_ISSUED_CHALLENGES) return;
+    issuedChallenges.delete(nonce);
   }
 }
 
@@ -63,6 +86,9 @@ function rememberChallenge(challenge: PaymentRequirementsResponse): void {
   pruneExpiredChallenges(nowMs);
   const [first] = challenge.accepts;
   if (!first) return;
+  // Expiry first, then the cap: under a flood nothing has expired yet, and the
+  // insert below must not be what pushes the map past its ceiling.
+  if (issuedChallenges.size >= MAX_ISSUED_CHALLENGES) evictOldestChallenges();
   issuedChallenges.set(first.extra.nonce, {
     accepts: challenge.accepts,
     expiresAtMs: nowMs + first.maxTimeoutSeconds * 1000,

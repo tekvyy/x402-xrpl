@@ -8,7 +8,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { Asset, PaymentSetup, XrplNetwork, isClassicAddress } from '@app/shared';
+import { Asset, PaymentSetup, XrplNetwork, isClassicAddress, isHttpUrl } from '@app/shared';
 import {
   createSeller,
   getSeller,
@@ -25,7 +25,10 @@ import { channelDestinationFor, forNetwork } from '../deps.js';
 const CreateSellerSchema = z
   .object({
     name: z.string().min(1).max(120),
-    originUrl: z.string().url(),
+    // Scheme-checked, not merely URL-shaped: `originUrl` is published in the
+    // public catalog and rendered as a link, so `javascript:`/`data:` (which
+    // `z.string().url()` accepts) would make registration a stored-XSS vector.
+    originUrl: z.string().max(2048).refine(isHttpUrl, 'must be an http(s) URL'),
     payToAddress: z.string().refine(isClassicAddress, 'must be a valid XRPL classic address'),
     priceAmount: z
       .string()

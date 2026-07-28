@@ -46,7 +46,7 @@ variables, typed literally into the UI.
 | `REDIS_URL`                 | `${{Redis.REDIS_URL}}`               |                                                                                 |
 | `DASHBOARD_ORIGIN`          | `https://<dashboard-domain>`         | CORS. Must exactly match the portal's URL, no trailing slash.                   |
 | `GATEWAY_PUBLIC_URL`        | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | Used to build absolute URLs.                                                    |
-| `TRUST_PROXY`               | `true`                               | Railway fronts the app; without this every per-IP rate limit keys on the proxy. |
+| `TRUST_PROXY`               | `1`                                  | Trusted proxy hops. Railway fronts the app with exactly one; at `0` every per-IP rate limit keys on the proxy, and higher values trust forged `X-Forwarded-For` entries. |
 | `AUTH_SECRET`               | (32+ random chars)                   | Session signing secret.                                                         |
 | `GATEWAY_XRPL_SEED`         | (family seed)                        | Covers both networks (same address on each). Treat as a secret.                 |
 | `GATEWAY_XRPL_SEED_MAINNET` | (family seed)                        | Optional: only to use a _different_ wallet on mainnet. Real funds.              |
