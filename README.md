@@ -187,6 +187,15 @@ networks), then put the middleware in front of the routes you want to charge for
 Pricing is deliberately **not** repeated in middleware config: the gateway
 registration is the single source of truth.
 
+**Getting the middleware.** There is no npm release yet, so clone this repo and
+build (`pnpm i && pnpm build`), then work inside the workspace. Note that
+`npm i github:tekvyy/x402-xrpl` does _not_ work: npm cannot install a
+subdirectory of a git repo, and `@xrpl-x402/server` declares
+`"@app/shared": "workspace:*"`, which fails outside the workspace with
+`EUNSUPPORTEDPROTOCOL`. If you only want the metering behavior, the adapter is
+small and has no XRPL code in it: `core.ts` (213 lines) plus a ~40-line Express
+or Fastify adapter, all of it just two HTTP calls to the facilitator.
+
 ```ts
 import express from 'express';
 import { x402Express } from '@xrpl-x402/server';

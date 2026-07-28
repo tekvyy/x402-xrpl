@@ -276,9 +276,22 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
             <li>Sign in with your XRPL wallet. A signed challenge, no fees, no seed.</li>
             <li>Register the API: name, price per call, payout address, payment setup.</li>
             <li>
-              Add the middleware to your own routes:
+              Get the middleware:{' '}
+              <a className="foot-link" href={REPO_URL} rel="noreferrer" target="_blank">
+                <code>@xrpl-x402/server</code>, open source on GitHub
+              </a>
+              . No npm release yet, so clone it and build:
               <code className="lane-code">
-                app.get(&apos;/premium&apos;, {'{ preHandler: x402(cfg) }'}, handler)
+                git clone {REPO_URL}.git
+                <br />
+                cd x402-xrpl &amp;&amp; pnpm i &amp;&amp; pnpm build
+              </code>
+            </li>
+            <li>
+              Add it to your own routes. It is pure delegation: no XRPL code, no pricing, just two
+              HTTP calls to this facilitator.
+              <code className="lane-code">
+                app.get(&apos;/premium&apos;, {'{ preHandler: x402Fastify(cfg) }'}, handler)
               </code>
             </li>
             <li>Watch revenue, callers, and settlements stream live on the dashboard.</li>
