@@ -10,6 +10,9 @@ export const GATEWAY_URL = (import.meta.env.VITE_GATEWAY_URL ?? 'http://localhos
   '',
 );
 
+/** Public source repository. The whole gateway is open source and self-hostable. */
+export const REPO_URL = 'https://github.com/tekvyy/x402-xrpl';
+
 /** Optional wallet-adapter credentials (adapters load only when present). */
 export const XAMAN_API_KEY = import.meta.env.VITE_XAMAN_API_KEY ?? '';
 export const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '';

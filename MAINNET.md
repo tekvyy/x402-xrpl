@@ -103,9 +103,9 @@ A client that opens a channel, makes metered calls, and then makes one
 pay-per-call request puts three real transactions on mainnet, each carrying the
 configured source tag:
 
-1. `PaymentChannelCreate` — the client opens a prepaid channel
-2. `Payment` — one pay-per-call settlement
-3. `PaymentChannelClaim` — the gateway redeems the channel on chain
+1. `PaymentChannelCreate`, the client opening a prepaid channel
+2. `Payment`, one pay-per-call settlement
+3. `PaymentChannelClaim`, the gateway redeeming the channel on chain
 
 The metered calls in between are deliberately **off-ledger**; that is the point
 of the credits path. The network a client pays on is the client's own setting

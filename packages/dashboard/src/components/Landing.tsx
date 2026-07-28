@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { XrplNetwork } from '@app/shared';
 import { fetchCatalog, type Catalog, type CatalogService } from '../api.js';
-import { GATEWAY_URL } from '../config.js';
+import { GATEWAY_URL, REPO_URL } from '../config.js';
 import { trimDecimal } from '../format.js';
 import { useNetwork } from '../network.js';
 import { NetworkToggle } from './NetworkToggle.js';
@@ -46,6 +46,22 @@ function useTypedTrace(lines: readonly string[]): number {
     return () => window.clearInterval(timer);
   }, [lines]);
   return visible;
+}
+
+/** GitHub's mark, inlined so the link needs no icon dependency. */
+function GithubMark(): JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="currentColor"
+    >
+      <path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38l-.01-1.34c-2.23.49-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.81.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.14.46.55.38A8 8 0 0 0 8 0Z" />
+    </svg>
+  );
 }
 
 function setupLabel(mode: CatalogService['paymentMode']): string[] {
@@ -186,6 +202,16 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
         </button>
         <div className="session">
           <NetworkToggle />
+          <a
+            className="btn repo-link"
+            href={REPO_URL}
+            rel="noreferrer"
+            target="_blank"
+            title="Source on GitHub (MIT)"
+          >
+            <GithubMark />
+            GitHub
+          </a>
           <button className="btn" type="button" onClick={onSignIn}>
             Sign in with wallet
           </button>
@@ -316,10 +342,14 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
           <p className="agent-note">
             The skill is a self-contained markdown doc teaching any agent XRPL wallet management
             (safe key handling, signing, submission) plus the full pay-per-call and prepaid-credits
-            flow. Paste it into your agent&apos;s context or point it at the URL.
-            Full client helpers (channels, claims, trustlines) ship in{' '}
-            <code>@xrpl-x402/client</code>; the 402 challenge itself is self-describing, so any HTTP
-            client that can sign an XRPL transaction can pay.
+            flow. Paste it into your agent&apos;s context or point it at the URL. Full client
+            helpers (channels, claims, trustlines) ship in <code>@xrpl-x402/client</code>; the 402
+            challenge itself is self-describing, so any HTTP client that can sign an XRPL
+            transaction can pay. The gateway, both SDKs, and this dashboard are{' '}
+            <a className="foot-link" href={REPO_URL} rel="noreferrer" target="_blank">
+              open source on GitHub
+            </a>
+            , so you can audit the settlement path or self-host the whole thing.
           </p>
         </div>
       </section>
@@ -327,6 +357,13 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
       <footer className="landing-foot">
         <span>
           facilitator <code>{GATEWAY_URL}</code>
+        </span>
+        <span>
+          <a className="foot-link" href={REPO_URL} rel="noreferrer" target="_blank">
+            Open source on GitHub (MIT)
+          </a>
+          {' · '}
+          run your own facilitator
         </span>
         <span>x402 on the XRP Ledger · every settlement source-tagged on chain · Beta</span>
       </footer>
