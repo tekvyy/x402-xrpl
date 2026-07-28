@@ -316,6 +316,10 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
             <li>Fund an XRPL wallet. That is the whole onboarding.</li>
             <li>Pick a service from the registry below (or fetch it as JSON).</li>
             <li>
+              Install the client:
+              <code className="lane-code">npm i @xrpl-x402/client</code>
+            </li>
+            <li>
               <code className="lane-code">x402fetch(url, {'{ x402 }'})</code> hits the 402, pays it,
               retries, and returns the real response.
             </li>
@@ -369,8 +373,16 @@ export function Landing({ onSignIn }: LandingProps): JSX.Element {
             The skill is a self-contained markdown doc teaching any agent XRPL wallet management
             (safe key handling, signing, submission) plus the full pay-per-call and prepaid-credits
             flow. Paste it into your agent&apos;s context or point it at the URL. Full client
-            helpers (channels, claims, trustlines) ship in <code>@xrpl-x402/client</code>; the 402
-            challenge itself is self-describing, so any HTTP client that can sign an XRPL
+            helpers (channels, claims, trustlines) ship in{' '}
+            <a
+              className="foot-link"
+              href="https://www.npmjs.com/package/@xrpl-x402/client"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <code>@xrpl-x402/client</code>
+            </a>
+            ; the 402 challenge itself is self-describing, so any HTTP client that can sign an XRPL
             transaction can pay. The gateway, both SDKs, and this dashboard are{' '}
             <a className="foot-link" href={REPO_URL} rel="noreferrer" target="_blank">
               open source on GitHub
