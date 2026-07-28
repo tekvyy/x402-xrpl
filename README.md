@@ -37,33 +37,34 @@ Three parties and the ledger. The seller keeps their own API; the gateway holds
 the x402 protocol logic; the ledger is the only source of truth about money.
 
 ```mermaid
-flowchart LR
-    A["AI agent / client<br/>@xrpl-x402/client"]
+flowchart TB
+    A["AI agent / client<br/><b>@xrpl-x402/client</b>"]
 
     subgraph SELLER["Seller's own server"]
-        direction TB
-        M["@xrpl-x402/server middleware<br/>no XRPL logic, no pricing"]
+        M["<b>@xrpl-x402/server</b> middleware<br/>no XRPL logic, no pricing"]
         H["your route handler"]
-        M -->|"paid requests only"| H
     end
 
     subgraph GW["Gateway · x402 facilitator"]
-        direction TB
         F["/challenge · /verify · /settle<br/>/supported · /catalog · /skill.md"]
-        P[("Postgres: credits, nonces, usage")]
-        R[("Redis: rate limit, pub/sub")]
-        F --- P
-        F --- R
+        P[("Postgres<br/>credits, nonces, usage")]
+        R[("Redis<br/>rate limit, pub/sub")]
     end
 
-    L["XRP Ledger via xrpl.js"]
+    L["<b>XRP Ledger</b><br/>Payment · PaymentChannelClaim"]
     D["Seller dashboard<br/>live SSE feed"]
 
+    %% Main spine, declared first so the layout runs straight down.
     A -->|"402 → pay → retry"| M
     M -->|"delegates every x402 decision"| F
-    A -->|"Payment or PaymentChannelCreate"| L
-    F -->|"verify tx · redeem PaymentChannelClaim"| L
-    F -.->|"usage events"| D
+    F -->|"verify · redeem"| L
+
+    %% Side branches.
+    M -->|"paid requests only"| H
+    A -.->|"pays on chain"| L
+    F --- P
+    F --- R
+    F -.->|"usage feed"| D
 ```
 
 The seller's API stays in the seller's hands. The middleware answers `402` for
